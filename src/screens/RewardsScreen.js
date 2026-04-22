@@ -4,9 +4,7 @@ import { ActivityIndicator, ScrollView, Text, View, useColorScheme } from 'react
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client';
 import { getTheme } from '../styles/appStyles';
 
-// ─────────────────────────────────────────────────────────────────
 // Sistema de niveles (igual que HomeScreen)
-// ─────────────────────────────────────────────────────────────────
 const LEVELS = [
   { level: 1, minPts: 0,   maxPts: 49,  label: 'Reciclador Inicial'  },
   { level: 2, minPts: 50,  maxPts: 119, label: 'Reciclador Activo'   },
@@ -20,9 +18,7 @@ function getLevelData(points) {
     || LEVELS[0];
 }
 
-// ─────────────────────────────────────────────────────────────────
 // Pantalla de recompensas
-// ─────────────────────────────────────────────────────────────────
 export function RewardsScreen({ user }) {
   const isDark = useColorScheme() === 'dark';
   const t      = getTheme(isDark);
@@ -176,7 +172,7 @@ export function RewardsScreen({ user }) {
         ))}
       </View>
 
-      {/* ── CATÁLOGO DE RECOMPENSAS (desde Supabase) ── */}
+      {/* CATÁLOGO DE RECOMPENSAS (desde Supabase) */}
       <View style={{ backgroundColor: card, borderRadius: 28, overflow: 'hidden', borderWidth: 1, borderColor: border }}>
         <View style={{
           paddingHorizontal: 18, paddingTop: 18, paddingBottom: 14,

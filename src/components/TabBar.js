@@ -1,9 +1,9 @@
 import { Pressable, Text, View, useColorScheme, Image } from 'react-native';
 import { getTheme } from '../styles/appStyles';
-import homeIcon from '../../assets/home.png';
-import mapIcon from '../../assets/map.png';
-import rewardsIcon from '../../assets/rewards.png';
-import profileIcon from '../../assets/profile.png';
+import homeIcon from '../../assets/TabBarIcons/home.png';
+import mapIcon from '../../assets/TabBarIcons/map.png';
+import rewardsIcon from '../../assets/TabBarIcons/rewards.png';
+import profileIcon from '../../assets/TabBarIcons/profile.png';
 
 const TAB_ICONS = {
   home:    { active: homeIcon, inactive: homeIcon },

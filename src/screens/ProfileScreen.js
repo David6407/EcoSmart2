@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   LayoutAnimation,
   Platform,
   Pressable,
@@ -11,7 +12,8 @@ import {
   useColorScheme,
 } from 'react-native';
 
-import { activityHistory, notificationPreferences, profileOptions } from '../../lib/appData';
+import { notificationPreferences, profileOptions } from '../../lib/appData';
+import { supabase, isSupabaseConfigured } from '../lib/supabase/client';
 import { getTheme } from '../styles/appStyles';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -107,36 +109,107 @@ function EditProfilePanel({ user, onSaveProfile, isDark, colors }) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Panel: Historial
+// Panel: Historial — datos reales desde activity_logs en Supabase
 // ─────────────────────────────────────────────────────────────────
-function HistoryPanel({ isDark, colors }) {
+const ACTION_META = {
+  reporte:    { icon: '📋', label: 'Reporte enviado',     pts: '+10 pts' },
+  validacion: { icon: '✅', label: 'Reporte validado',    pts: '+5 pts'  },
+  racha:      { icon: '🔥', label: 'Bonus de racha',      pts: null      },
+  logro:      { icon: '🏅', label: 'Logro desbloqueado',  pts: null      },
+};
+
+function formatRelativeDate(isoString) {
+  const diff = Math.floor((Date.now() - new Date(isoString)) / 86400000);
+  if (diff === 0) return 'Hoy';
+  if (diff === 1) return 'Ayer';
+  if (diff < 7)  return `Hace ${diff} días`;
+  return new Date(isoString).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
+}
+
+function HistoryPanel({ userId, isDark, colors }) {
   const { text, textMuted, border, accent, accentSoft } = colors;
+  const [logs, setLogs]       = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || !userId) {
+      setLoading(false);
+      return;
+    }
+    (async () => {
+      const { data } = await supabase
+        .from('activity_logs')
+        .select('id, action, points, detail, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      setLogs(data || []);
+      setLoading(false);
+    })();
+  }, [userId]);
+
+  if (loading) {
+    return (
+      <View style={{ padding: 24, alignItems: 'center' }}>
+        <ActivityIndicator color={accent} />
+      </View>
+    );
+  }
+
+  if (logs.length === 0) {
+    return (
+      <View style={{ padding: 24, alignItems: 'center', gap: 8 }}>
+        <Text style={{ fontSize: 28 }}>🌱</Text>
+        <Text style={{ color: textMuted, fontSize: 13, textAlign: 'center', lineHeight: 19 }}>
+          Aún no tienes actividad.{'\n'}¡Envía tu primer reporte en el mapa!
+        </Text>
+      </View>
+    );
+  }
+
   return (
-    <View style={{ paddingHorizontal: 16, paddingBottom: 20, paddingTop: 6, gap: 0 }}>
-      {activityHistory.map((item, i) => (
-        <View key={item.id}>
-          {i > 0 && <View style={{ height: 1, backgroundColor: border, marginVertical: 12 }} />}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <View style={{
-              width: 40, height: 40, borderRadius: 12,
-              backgroundColor: accentSoft,
-              alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Text style={{ fontSize: 17 }}>♻️</Text>
-            </View>
-            <View style={{ flex: 1, gap: 3 }}>
-              <Text style={{ color: text, fontSize: 13, fontWeight: '700' }}>{item.title}</Text>
-              <Text style={{ color: textMuted, fontSize: 11, lineHeight: 16 }}>{item.subtitle}</Text>
-            </View>
-            <View style={{
-              backgroundColor: accentSoft, borderRadius: 8,
-              paddingHorizontal: 8, paddingVertical: 4,
-            }}>
-              <Text style={{ color: accent, fontSize: 10, fontWeight: '800' }}>{item.date}</Text>
+    <View style={{ paddingHorizontal: 16, paddingBottom: 20, paddingTop: 6 }}>
+      {logs.map((item, i) => {
+        const meta = ACTION_META[item.action] || { icon: '♻️', label: item.action, pts: null };
+        const ptsLabel = meta.pts ?? `+${item.points} pts`;
+        return (
+          <View key={item.id}>
+            {i > 0 && <View style={{ height: 1, backgroundColor: border, marginVertical: 12 }} />}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              {/* Ícono */}
+              <View style={{
+                width: 42, height: 42, borderRadius: 13,
+                backgroundColor: accentSoft,
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Text style={{ fontSize: 18 }}>{meta.icon}</Text>
+              </View>
+
+              {/* Texto */}
+              <View style={{ flex: 1, gap: 3 }}>
+                <Text style={{ color: text, fontSize: 13, fontWeight: '700' }}>
+                  {meta.label}
+                </Text>
+                {item.detail ? (
+                  <Text style={{ color: textMuted, fontSize: 11, lineHeight: 16 }} numberOfLines={1}>
+                    {item.detail}
+                  </Text>
+                ) : null}
+              </View>
+
+              {/* Puntos + fecha */}
+              <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                <View style={{ backgroundColor: accentSoft, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+                  <Text style={{ color: accent, fontSize: 11, fontWeight: '800' }}>{ptsLabel}</Text>
+                </View>
+                <Text style={{ color: textMuted, fontSize: 10, fontWeight: '600' }}>
+                  {formatRelativeDate(item.created_at)}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
-      ))}
+        );
+      })}
     </View>
   );
 }
@@ -190,11 +263,11 @@ function NotificationsPanel({ isDark, colors }) {
 // Panel: ¿Cómo funciona?
 // ─────────────────────────────────────────────────────────────────
 const LEVELS = [
-  { level: 1, pts: 0,    label: 'Reciclador Inicial' },
-  { level: 2, pts: 100,  label: 'Reciclador Activo' },
-  { level: 3, pts: 300,  label: 'Reciclador Avanzado' },
-  { level: 4, pts: 600,  label: 'Guardián Verde' },
-  { level: 5, pts: 1000, label: 'Maestro EcoSmart' },
+  { level: 1, pts: 0,   label: 'Reciclador Inicial'  },
+  { level: 2, pts: 50,  label: 'Reciclador Activo'   },
+  { level: 3, pts: 120, label: 'Reciclador Avanzado' },
+  { level: 4, pts: 250, label: 'Guardián Verde'      },
+  { level: 5, pts: 400, label: 'Maestro EcoSmart'    },
 ];
 
 const HOW_IT_WORKS = [
@@ -202,7 +275,7 @@ const HOW_IT_WORKS = [
     id: 'h1',
     icon: '🗺️',
     title: 'Explora el mapa',
-    description: 'Encuentra puntos de reciclaje verificados cerca de ti. Toca cualquier pin para ver qué materiales acepta.',
+    description: 'Encuentra puntos de reciclaje verificados cerca de ti. Toca cualquier punto para ver qué materiales acepta.',
   },
   {
     id: 'h2',
@@ -359,8 +432,6 @@ function HowItWorksPanel({ isDark, colors, userLevel, userPoints }) {
         {[
           { action: 'Reportar un punto de reciclaje', pts: '+10 pts', icon: '📋' },
           { action: 'Visitar un punto verificado',    pts: '+5 pts',  icon: '📍' },
-          { action: 'Completar tu perfil',            pts: '+15 pts', icon: '👤' },
-          { action: 'Logro desbloqueado',             pts: '+25 pts', icon: '🏅' },
         ].map((item) => (
           <View key={item.action} style={{
             flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -379,9 +450,7 @@ function HowItWorksPanel({ isDark, colors, userLevel, userPoints }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────
 // Fila de opción individual con panel inline
-// ─────────────────────────────────────────────────────────────────
 const OPTION_ICONS = {
   'Editar perfil':          '✏️',
   'Historial de acciones':  '📋',
@@ -460,9 +529,7 @@ function OptionRow({ option, isActive, isFirst, onPress, isDark, colors, childre
   );
 }
 
-// ─────────────────────────────────────────────────────────────────
 // Pantalla principal
-// ─────────────────────────────────────────────────────────────────
 export function ProfileScreen({ user, onLogout, onSaveProfile }) {
   const isDark = useColorScheme() === 'dark';
   const t = getTheme(isDark);
@@ -547,35 +614,6 @@ export function ProfileScreen({ user, onLogout, onSaveProfile }) {
         </View>
       </View>
 
-      {/* ── STATS 3 COLUMNAS ── */}
-      <View style={{
-        backgroundColor: card, borderRadius: 28,
-        borderWidth: 1, borderColor: border,
-        flexDirection: 'row', overflow: 'hidden',
-      }}>
-        {[
-          { label: 'Kg reciclados', value: `${user?.recycledKg ?? 0}`, unit: 'kg', icon: '♻️' },
-          { label: 'Puntos totales', value: String(user?.points ?? 0), unit: 'pts', icon: '⭐' },
-          { label: 'Nivel actual', value: `${user?.level ?? 1}`, unit: '', icon: '🎯' },
-        ].map((stat, i) => (
-          <View key={stat.label} style={{
-            flex: 1, alignItems: 'center', gap: 4,
-            paddingVertical: 18, paddingHorizontal: 8,
-            borderRightWidth: i < 2 ? 1 : 0,
-            borderRightColor: border,
-          }}>
-            <Text style={{ fontSize: 20 }}>{stat.icon}</Text>
-            <Text style={{ color: text, fontSize: 22, fontWeight: '900', letterSpacing: -0.5 }}>
-              {stat.value}
-              <Text style={{ fontSize: 12, fontWeight: '600', color: textMuted }}>{stat.unit}</Text>
-            </Text>
-            <Text style={{ color: textMuted, fontSize: 11, fontWeight: '600', textAlign: 'center' }}>
-              {stat.label}
-            </Text>
-          </View>
-        ))}
-      </View>
-
       {/* ── OPCIONES CON PANELES INLINE ── */}
       <View style={{
         backgroundColor: card, borderRadius: 28,
@@ -598,7 +636,7 @@ export function ProfileScreen({ user, onLogout, onSaveProfile }) {
                 />
               );
             } else if (option.label === 'Historial de acciones') {
-              panel = <HistoryPanel isDark={isDark} colors={colors} />;
+              panel = <HistoryPanel userId={user?.id} isDark={isDark} colors={colors} />;
             } else if (option.label === 'Notificaciones') {
               panel = <NotificationsPanel isDark={isDark} colors={colors} />;
             } else if (option.label === '¿Cómo funciona?') {

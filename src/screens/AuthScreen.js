@@ -60,9 +60,7 @@ export function AuthScreen({
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ── HERO ── */}
         <View style={s.hero}>
-          {/* Logo con glow */}
           <View style={s.logoGlow}>
             <View style={s.logoBox}>
               <Image source={icon} style={s.logo} resizeMode="contain" />
@@ -119,7 +117,6 @@ export function AuthScreen({
                   keyboardType="email-address"
                   placeholder="correo@ejemplo.com"
                   error={loginErrors.email}
-                  icon="✉️"
                   isDark={isDark}
                 />
                 <AuthInput
@@ -129,7 +126,6 @@ export function AuthScreen({
                   secureTextEntry
                   placeholder="••••••••"
                   error={loginErrors.password}
-                  icon="🔒"
                   isDark={isDark}
                 />
 
@@ -160,7 +156,6 @@ export function AuthScreen({
                   onChangeText={(text) => setRegisterForm((prev) => ({ ...prev, name: text }))}
                   placeholder="Tu nombre completo"
                   error={registerErrors.name}
-                  icon="👤"
                   isDark={isDark}
                 />
                 <AuthInput
@@ -170,7 +165,6 @@ export function AuthScreen({
                   keyboardType="email-address"
                   placeholder="correo@ejemplo.com"
                   error={registerErrors.email}
-                  icon="✉️"
                   isDark={isDark}
                 />
                 <AuthInput
@@ -180,7 +174,6 @@ export function AuthScreen({
                   secureTextEntry
                   placeholder="••••••••"
                   error={registerErrors.password}
-                  icon="🔒"
                   isDark={isDark}
                 />
                 <AuthInput
@@ -190,7 +183,6 @@ export function AuthScreen({
                   secureTextEntry
                   placeholder="••••••••"
                   error={registerErrors.confirmPassword}
-                  icon="🔒"
                   isDark={isDark}
                 />
 
@@ -210,7 +202,7 @@ export function AuthScreen({
                 {authNotice ? <View style={s.noticeBox}><Text style={s.noticeText}>✓ {authNotice}</Text></View> : null}
 
                 <Text style={s.helper}>
-                  Al registrarte aceptas contribuir a una ciudad más limpia y sostenible. 🌱
+                  Al registrarte aceptas contribuir a una ciudad más limpia y sostenible.
                 </Text>
               </>
             )}
@@ -218,7 +210,7 @@ export function AuthScreen({
         </View>
 
         {/* Footer */}
-        <Text style={s.footer}>EcoSmart · Reciclaje inteligente</Text>
+        <Text style={s.footer}>EcoSmart · By SoftCreate</Text>
       </ScrollView>
     </SafeAreaView>
   );
