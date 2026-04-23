@@ -11,7 +11,6 @@ import {
   Text,
   TextInput,
   View,
-  useColorScheme,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 
@@ -494,7 +493,7 @@ function SuccessPanel({ onClose, isDark, colors }) {
 // Pantalla principal
 // ─────────────────────────────────────────────────────────────────
 export function MapScreen({ currentUser, onReportSuccess }) {
-  const isDark     = useColorScheme() === 'dark';
+  const isDark     = false;
   const t          = getTheme(isDark);
   const webviewRef = useRef(null);
 

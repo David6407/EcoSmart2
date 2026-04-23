@@ -1,4 +1,5 @@
-import { Text, TextInput, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { getAuthStyles } from '../styles/appStyles';
 
@@ -14,6 +15,7 @@ export function AuthInput({
   isDark = false,
 }) {
   const s = getAuthStyles(isDark);
+  const [isPasswordHidden, setIsPasswordHidden] = useState(!!secureTextEntry);
 
   return (
     <View style={s.inputGroup}>
@@ -25,13 +27,18 @@ export function AuthInput({
         <TextInput
           value={value}
           onChangeText={onChangeText}
-          secureTextEntry={secureTextEntry}
+          secureTextEntry={isPasswordHidden}
           keyboardType={keyboardType}
           placeholder={placeholder}
           placeholderTextColor={isDark ? '#5A6B62' : '#9EB0A4'}
-          style={s.inputField}
+          style={[s.inputField, { flex: 1 }]}
           autoCapitalize="none"
         />
+        {secureTextEntry && (
+          <Pressable onPress={() => setIsPasswordHidden(!isPasswordHidden)} style={{ paddingHorizontal: 10, justifyContent: 'center' }}>
+            <Text style={{ fontSize: 18, opacity: 0.6 }}>{isPasswordHidden ? '🔒' : '🔓'}</Text>
+          </Pressable>
+        )}
       </View>
       {error ? <Text style={s.inputError}>{error}</Text> : null}
     </View>

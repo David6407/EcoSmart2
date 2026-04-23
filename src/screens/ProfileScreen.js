@@ -9,7 +9,6 @@ import {
   TextInput,
   UIManager,
   View,
-  useColorScheme,
 } from 'react-native';
 
 import { notificationPreferences, profileOptions } from '../../lib/appData';
@@ -33,9 +32,14 @@ function EditProfilePanel({ user, onSaveProfile, isDark, colors }) {
 
   async function handleSave() {
     setIsSaving(true);
-    const result = await onSaveProfile({ fullName });
-    setIsSaving(false);
-    setFeedback({ type: result.ok ? 'success' : 'error', message: result.message });
+    try {
+      const result = await onSaveProfile({ fullName });
+      setFeedback({ type: result?.ok ? 'success' : 'error', message: result?.message || 'Error desconocido' });
+    } catch (e) {
+      setFeedback({ type: 'error', message: e?.message || 'Error al guardar los cambios.' });
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -112,23 +116,23 @@ function EditProfilePanel({ user, onSaveProfile, isDark, colors }) {
 // Panel: Historial — datos reales desde activity_logs en Supabase
 // ─────────────────────────────────────────────────────────────────
 const ACTION_META = {
-  reporte:    { icon: '📋', label: 'Reporte enviado',     pts: '+10 pts' },
-  validacion: { icon: '✅', label: 'Reporte validado',    pts: '+5 pts'  },
-  racha:      { icon: '🔥', label: 'Bonus de racha',      pts: null      },
-  logro:      { icon: '🏅', label: 'Logro desbloqueado',  pts: null      },
+  reporte: { icon: '📋', label: 'Reporte enviado', pts: '+10 pts' },
+  validacion: { icon: '✅', label: 'Reporte validado', pts: '+5 pts' },
+  racha: { icon: '🔥', label: 'Bonus de racha', pts: null },
+  logro: { icon: '🏅', label: 'Logro desbloqueado', pts: null },
 };
 
 function formatRelativeDate(isoString) {
   const diff = Math.floor((Date.now() - new Date(isoString)) / 86400000);
   if (diff === 0) return 'Hoy';
   if (diff === 1) return 'Ayer';
-  if (diff < 7)  return `Hace ${diff} días`;
+  if (diff < 7) return `Hace ${diff} días`;
   return new Date(isoString).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
 }
 
 function HistoryPanel({ userId, isDark, colors }) {
   const { text, textMuted, border, accent, accentSoft } = colors;
-  const [logs, setLogs]       = useState([]);
+  const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -263,11 +267,11 @@ function NotificationsPanel({ isDark, colors }) {
 // Panel: ¿Cómo funciona?
 // ─────────────────────────────────────────────────────────────────
 const LEVELS = [
-  { level: 1, pts: 0,   label: 'Reciclador Inicial'  },
-  { level: 2, pts: 50,  label: 'Reciclador Activo'   },
+  { level: 1, pts: 0, label: 'Reciclador Inicial' },
+  { level: 2, pts: 50, label: 'Reciclador Activo' },
   { level: 3, pts: 120, label: 'Reciclador Avanzado' },
-  { level: 4, pts: 250, label: 'Guardián Verde'      },
-  { level: 5, pts: 400, label: 'Maestro EcoSmart'    },
+  { level: 4, pts: 250, label: 'Guardián Verde' },
+  { level: 5, pts: 400, label: 'Maestro EcoSmart' },
 ];
 
 const HOW_IT_WORKS = [
@@ -304,8 +308,8 @@ function HowItWorksPanel({ isDark, colors, userLevel, userPoints }) {
   const currentLevelData = LEVELS.find((l) => l.level === userLevel) || LEVELS[0];
   const nextLevelData = LEVELS.find((l) => l.level === (userLevel + 1));
   const progressPts = nextLevelData ? userPoints - currentLevelData.pts : 0;
-  const neededPts   = nextLevelData ? nextLevelData.pts - currentLevelData.pts : 1;
-  const progress    = nextLevelData ? Math.min(1, progressPts / neededPts) : 1;
+  const neededPts = nextLevelData ? nextLevelData.pts - currentLevelData.pts : 1;
+  const progress = nextLevelData ? Math.min(1, progressPts / neededPts) : 1;
 
   return (
     <View style={{ paddingHorizontal: 16, paddingBottom: 20, paddingTop: 6, gap: 20 }}>
@@ -346,8 +350,8 @@ function HowItWorksPanel({ isDark, colors, userLevel, userPoints }) {
 
         {LEVELS.map((lvl) => {
           const isCurrentLevel = lvl.level === userLevel;
-          const isPastLevel    = lvl.level < userLevel;
-          const isFutureLevel  = lvl.level > userLevel;
+          const isPastLevel = lvl.level < userLevel;
+          const isFutureLevel = lvl.level > userLevel;
 
           return (
             <View
@@ -431,7 +435,7 @@ function HowItWorksPanel({ isDark, colors, userLevel, userPoints }) {
         </Text>
         {[
           { action: 'Reportar un punto de reciclaje', pts: '+10 pts', icon: '📋' },
-          { action: 'Visitar un punto verificado',    pts: '+5 pts',  icon: '📍' },
+          { action: 'Visitar un punto verificado', pts: '+5 pts', icon: '📍' },
         ].map((item) => (
           <View key={item.action} style={{
             flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -452,11 +456,11 @@ function HowItWorksPanel({ isDark, colors, userLevel, userPoints }) {
 
 // Fila de opción individual con panel inline
 const OPTION_ICONS = {
-  'Editar perfil':          '✏️',
-  'Historial de acciones':  '📋',
-  'Notificaciones':         '🔔',
-  '¿Cómo funciona?':        '💡',
-  'Cerrar sesion':          '🚪',
+  'Editar perfil': '✏️',
+  'Historial de acciones': '📋',
+  'Notificaciones': '🔔',
+  '¿Cómo funciona?': '💡',
+  'Cerrar sesion': '🚪',
 };
 
 function OptionRow({ option, isActive, isFirst, onPress, isDark, colors, children }) {
@@ -531,18 +535,18 @@ function OptionRow({ option, isActive, isFirst, onPress, isDark, colors, childre
 
 // Pantalla principal
 export function ProfileScreen({ user, onLogout, onSaveProfile }) {
-  const isDark = useColorScheme() === 'dark';
+  const isDark = false;
   const t = getTheme(isDark);
 
   const colors = {
-    card:       isDark ? '#182820' : '#FFFFFF',
-    border:     isDark ? '#2A4035' : '#E2EDE6',
-    text:       isDark ? '#E8F5EE' : '#1A2E23',
-    textMuted:  isDark ? '#7FAE94' : '#617180',
-    inputBg:    isDark ? '#1E3228' : '#F4FAF6',
-    accent:     t.accent,
+    card: isDark ? '#182820' : '#FFFFFF',
+    border: isDark ? '#2A4035' : '#E2EDE6',
+    text: isDark ? '#E8F5EE' : '#1A2E23',
+    textMuted: isDark ? '#7FAE94' : '#617180',
+    inputBg: isDark ? '#1E3228' : '#F4FAF6',
+    accent: t.accent,
     accentSoft: isDark ? '#1A3828' : '#E4F5E9',
-    error:      t.error,
+    error: t.error,
   };
 
   const [activeSection, setActiveSection] = useState('');

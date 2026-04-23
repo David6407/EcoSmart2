@@ -1,4 +1,4 @@
-import { Pressable, Text, View, useColorScheme, Image } from 'react-native';
+import { Pressable, Text, View, Image } from 'react-native';
 import { getTheme } from '../styles/appStyles';
 import homeIcon from '../../assets/TabBarIcons/home.png';
 import mapIcon from '../../assets/TabBarIcons/map.png';
@@ -20,7 +20,7 @@ const TAB_LABELS = {
 };
 
 export function TabBar({ tabs, activeTab, onTabPress }) {
-  const isDark = useColorScheme() === 'dark';
+  const isDark = false;
   const t = getTheme(isDark);
 
   const bg     = isDark ? '#182820' : '#FFFFFF';

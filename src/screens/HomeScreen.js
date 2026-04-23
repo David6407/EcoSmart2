@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, Text, View, useColorScheme } from 'react-native';
+import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { quickActions } from '../../lib/appData';
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client';
@@ -45,7 +45,7 @@ const ACTION_ICONS = {
 // Pantalla principal
 // ─────────────────────────────────────────────────────────────────
 export function HomeScreen({ onChangeTab, user }) {
-  const isDark     = useColorScheme() === 'dark';
+  const isDark     = false;
   const t          = getTheme(isDark);
   const [recentActivity, setRecentActivity] = useState([]);
   const [loadingActivity, setLoadingActivity] = useState(true);

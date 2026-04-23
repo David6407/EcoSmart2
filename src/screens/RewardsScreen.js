@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client';
 import { getTheme } from '../styles/appStyles';
@@ -20,7 +20,7 @@ function getLevelData(points) {
 
 // Pantalla de recompensas
 export function RewardsScreen({ user }) {
-  const isDark = useColorScheme() === 'dark';
+  const isDark = false;
   const t      = getTheme(isDark);
 
   const card       = isDark ? '#182820' : '#FFFFFF';
@@ -126,8 +126,8 @@ export function RewardsScreen({ user }) {
       {/* ── STATS RÁPIDOS ── */}
       <View style={{ flexDirection: 'row', gap: 10 }}>
         {[
-          { icon: '📋', value: reportsCount, label: reportsCount === 1 ? 'reporte' : 'reportes' },
           { icon: '🔥', value: streak, label: streak === 1 ? 'día racha' : 'días racha' },
+          { icon: '📋', value: reportsCount, label: reportsCount === 1 ? 'reporte' : 'reportes' },
           { icon: '🎯', value: currentLvl.level, label: 'nivel actual' },
         ].map((s) => (
           <View key={s.label} style={{

@@ -275,16 +275,6 @@ export default function App() {
       return { ok: false, message: 'No se pudo obtener el usuario actual.' };
     }
 
-    const { error: authUpdateError } = await supabase.auth.updateUser({
-      data: {
-        full_name: trimmedName,
-      },
-    });
-
-    if (authUpdateError) {
-      return { ok: false, message: authUpdateError.message };
-    }
-
     await supabase.from('profiles').update({ full_name: trimmedName }).eq('id', user.id);
 
     setCurrentUser((current) =>

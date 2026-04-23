@@ -4,7 +4,6 @@ import {
   SafeAreaView,
   ScrollView,
   Text,
-  useColorScheme,
   View,
 } from 'react-native';
 
@@ -44,8 +43,7 @@ export function AuthScreen({
   authNotice,
   isSubmitting,
 }) {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const isDark = false;
   const theme = getTheme(isDark);
   const s = getAuthStyles(isDark);
 
