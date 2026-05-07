@@ -12,6 +12,19 @@ import { getAuthStyles, getTheme } from '../styles/appStyles';
 
 const icon = require('../../assets/logo.png');
 
+const ROLE_OPTIONS = [
+  {
+    id: 'citizen',
+    title: 'Ciudadano',
+    description: 'Reporta puntos y acumula recompensas.',
+  },
+  {
+    id: 'collector',
+    title: 'Recolector',
+    description: 'Gestiona reportes visibles en el mapa.',
+  },
+];
+
 function LeafDecoration({ color }) {
   return (
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden', pointerEvents: 'none' }}>
@@ -183,6 +196,36 @@ export function AuthScreen({
                   error={registerErrors.confirmPassword}
                   isDark={isDark}
                 />
+
+                <View style={s.roleGroup}>
+                  <Text style={s.roleLabel}>Tipo de cuenta</Text>
+                  <View style={s.roleGrid}>
+                    {ROLE_OPTIONS.map((role) => {
+                      const selected = registerForm.role === role.id;
+                      return (
+                        <Pressable
+                          key={role.id}
+                          onPress={() => setRegisterForm((prev) => ({ ...prev, role: role.id }))}
+                          style={[
+                            s.roleCard,
+                            selected && s.roleCardActive,
+                            registerErrors.role && s.roleCardError,
+                          ]}
+                        >
+                          <Text style={[s.roleTitle, selected && s.roleTitleActive]}>
+                            {role.title}
+                          </Text>
+                          <Text style={[s.roleDescription, selected && s.roleDescriptionActive]}>
+                            {role.description}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  {registerErrors.role ? (
+                    <Text style={s.inputError}>{registerErrors.role}</Text>
+                  ) : null}
+                </View>
 
                 <Pressable
                   style={({ pressed }) => [s.submitBtn, isSubmitting && s.submitBtnDisabled, pressed && s.submitBtnPressed]}

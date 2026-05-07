@@ -9,6 +9,7 @@ const TAB_ICONS = {
   home:    { active: homeIcon, inactive: homeIcon },
   map:     { active: mapIcon, inactive: mapIcon },
   rewards: { active: rewardsIcon, inactive: rewardsIcon },
+  reports: { active: mapIcon, inactive: mapIcon },
   profile: { active: profileIcon, inactive: profileIcon },
 };
 
@@ -16,6 +17,7 @@ const TAB_LABELS = {
   home:    'Inicio',
   map:     'Mapa',
   rewards: 'Recompensas',
+  reports: 'Reportes',
   profile: 'Perfil',
 };
 

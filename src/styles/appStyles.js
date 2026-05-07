@@ -195,6 +195,54 @@ export function getAuthStyles(isDark) {
     form: {
       gap: 14,
     },
+    roleGroup: {
+      gap: 8,
+    },
+    roleLabel: {
+      color: t.textLabel,
+      fontSize: 13,
+      fontWeight: '700',
+      letterSpacing: 0.3,
+      textTransform: 'uppercase',
+    },
+    roleGrid: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    roleCard: {
+      flex: 1,
+      minHeight: 92,
+      backgroundColor: t.bgInput,
+      borderWidth: 1.5,
+      borderColor: t.border,
+      borderRadius: 16,
+      padding: 12,
+      justifyContent: 'center',
+      gap: 5,
+    },
+    roleCardActive: {
+      backgroundColor: t.accent,
+      borderColor: t.accent,
+    },
+    roleCardError: {
+      borderColor: t.error,
+    },
+    roleTitle: {
+      color: t.text,
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    roleTitleActive: {
+      color: '#FFFFFF',
+    },
+    roleDescription: {
+      color: t.textHelper,
+      fontSize: 11,
+      lineHeight: 15,
+    },
+    roleDescriptionActive: {
+      color: 'rgba(255,255,255,0.82)',
+    },
     inputGroup: {
       gap: 7,
     },

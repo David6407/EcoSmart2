@@ -359,3 +359,66 @@ on conflict do nothing;
 -- ═══════════════════════════════════════════════════════════════
 -- FIN DEL SCRIPT
 -- ═══════════════════════════════════════════════════════════════
+-- Incio de mejora para la base de datos
+alter table profiles
+add column if not exists role text not null default 'citizen';
+
+alter table profiles
+drop constraint if exists profiles_role_check;
+
+alter table profiles
+add constraint profiles_role_check
+check (role in ('citizen', 'collector', 'admin'));
+
+alter table reports
+add column if not exists collector_id uuid references profiles(id) on delete set null;
+
+alter table reports
+drop constraint if exists reports_status_check;
+
+alter table reports
+add constraint reports_status_check
+check (status in ('pendiente', 'validado', 'en_proceso', 'recolectado', 'rechazado'));
+
+create or replace function public.current_user_role()
+returns text
+language sql
+security definer
+stable
+as $$
+  select role from public.profiles where id = auth.uid();
+$$;
+
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+as $$
+begin
+  insert into public.profiles (id, full_name, email, role)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'full_name', 'Usuario EcoSmart'),
+    new.email,
+    coalesce(new.raw_user_meta_data->>'role', 'citizen')
+  );
+
+  return new;
+end;
+$$;
+
+drop policy if exists "Usuarios ven sus propios reportes" on reports;
+drop policy if exists "Recolectores ven reportes" on reports;
+drop policy if exists "Recolectores actualizan reportes" on reports;
+
+create policy "Usuarios y recolectores ven reportes"
+  on reports for select to authenticated
+  using (
+    auth.uid() = user_id
+    or public.current_user_role() in ('collector', 'admin')
+  );
+
+create policy "Recolectores actualizan reportes"
+  on reports for update to authenticated
+  using (public.current_user_role() in ('collector', 'admin'))
+  with check (public.current_user_role() in ('collector', 'admin'));

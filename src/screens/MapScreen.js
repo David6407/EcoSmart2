@@ -1,5 +1,5 @@
 import * as Location from 'expo-location';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
@@ -21,7 +21,7 @@ import { getTheme } from '../styles/appStyles';
 // Constantes
 // ─────────────────────────────────────────────────────────────────
 const MATERIAL_TYPES = ['Plástico', 'Papel', 'Vidrio', 'Orgánico', 'Metal', 'Electrónico'];
-const FILTERS        = ['Todos', 'Plastico', 'Vidrio', 'Organico'];
+const FILTERS        = ['Todos', 'Plastico', 'Vidrio', 'Organico', 'Reportes'];
 
 const MATERIAL_ICONS = {
   Plastico:   '🥤',
@@ -37,7 +37,19 @@ const LEGEND = [
   { color: '#2E9E65', label: 'Activo',       status: 'activo'       },
   { color: '#FBC02D', label: 'Mantenimiento', status: 'mantenimiento'},
   { color: '#EF5350', label: 'Inactivo',      status: 'inactivo'     },
+  { color: '#1976D2', label: 'Reporte',       status: 'reporte'      },
 ];
+
+const REPORT_STATUS_META = {
+  pendiente: { label: 'Pendiente', color: '#D4A017' },
+  en_proceso: { label: 'En proceso', color: '#1976D2' },
+  recolectado: { label: 'Recolectado', color: '#2E9E65' },
+  rechazado: { label: 'Rechazado', color: '#D9485F' },
+  validado: { label: 'Validado', color: '#2E9E65' },
+};
+
+const REPORT_COOLDOWN_MINUTES = 15;
+const REPORT_DAILY_LIMIT = 5;
 
 // Fallback si Supabase no está configurado
 const FALLBACK_POINTS = [
@@ -89,7 +101,7 @@ var activeMarker=null;
 pts.forEach(function(p){
   var icon=L.divIcon({
     className:'',
-    html:'<div class="rpin" style="background:'+p.color+'">♻</div>',
+    html:'<div class="rpin" style="background:'+p.color+'">'+(p.icon||'♻')+'</div>',
     iconSize:[40,40],
     iconAnchor:[20,20],
   });
@@ -162,7 +174,7 @@ function BottomSheet({ visible, onClose, children }) {
 // ─────────────────────────────────────────────────────────────────
 // Panel: info de punto (desde Supabase)
 // ─────────────────────────────────────────────────────────────────
-function PointInfoPanel({ point, onClose, onReport, isDark, colors }) {
+function PointInfoPanel({ point, onClose, onReport, isDark, colors, currentUser }) {
   const { card, border, text, textMuted, accent, accentSoft } = colors;
 
   // Estado del punto → color y etiqueta
@@ -170,8 +182,15 @@ function PointInfoPanel({ point, onClose, onReport, isDark, colors }) {
     activo:        { label: '● Activo',         color: accent },
     mantenimiento: { label: '⚠ Mantenimiento',  color: '#D4A017' },
     inactivo:      { label: '✕ Inactivo',        color: colors.error },
+    pendiente:     { label: 'Pendiente',          color: '#D4A017' },
+    en_proceso:    { label: 'En proceso',         color: '#1976D2' },
+    recolectado:   { label: 'Recolectado',        color: accent },
+    rechazado:     { label: 'Rechazado',          color: colors.error },
+    validado:      { label: 'Validado',           color: accent },
   };
   const statusInfo = statusMap[point.status] || statusMap.activo;
+  const isReport = point.kind === 'report';
+  const canCreateReport = currentUser?.role !== 'collector' && !isReport;
 
   // Materiales como array
   const materials = Array.isArray(point.materials)
@@ -200,7 +219,7 @@ function PointInfoPanel({ point, onClose, onReport, isDark, colors }) {
             {point.title}
           </Text>
           <Text style={{ color: textMuted, fontSize: 13 }}>
-            Punto de reciclaje verificado
+            {isReport ? 'Reporte ciudadano geolocalizado' : 'Punto de reciclaje verificado'}
           </Text>
         </View>
         <Pressable
@@ -232,6 +251,18 @@ function PointInfoPanel({ point, onClose, onReport, isDark, colors }) {
       </View>
 
       {/* Botón reportar — deshabilitado si está inactivo */}
+      {isReport && point.description ? (
+        <View style={{ gap: 8 }}>
+          <Text style={{ color: textMuted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            Descripcion
+          </Text>
+          <Text style={{ color: textMuted, fontSize: 13, lineHeight: 19 }}>
+            {point.description}
+          </Text>
+        </View>
+      ) : null}
+
+      {canCreateReport ? (
       <Pressable
         onPress={() => onReport(point.lat, point.lng, point.title)}
         disabled={point.status === 'inactivo'}
@@ -253,6 +284,7 @@ function PointInfoPanel({ point, onClose, onReport, isDark, colors }) {
           {point.status === 'inactivo' ? 'Punto no disponible' : 'Reportar visita →'}
         </Text>
       </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -278,6 +310,8 @@ function ReportPanel({ lat, lng, prefillTitle, onClose, onSuccess, isDark, color
     if (!title.trim()) { setFormError('Agrega un título al reporte.'); return; }
     if (!isSupabaseConfigured || !supabase) { setFormError('Supabase no está configurado.'); return; }
 
+    if (!currentUser?.id) { setFormError('No se pudo identificar al usuario actual.'); return; }
+
     setIsSubmitting(true);
     setFormError('');
 
@@ -286,14 +320,15 @@ function ReportPanel({ lat, lng, prefillTitle, onClose, onSuccess, isDark, color
       selectedMaterials.length > 0 ? `Materiales: ${selectedMaterials.join(', ')}` : '',
     ].filter(Boolean).join('\n');
 
-    const { error: dbError } = await supabase.from('reports').insert({
-      user_id:       currentUser?.id,
-      title:         title.trim(),
-      description:   fullDescription || null,
-      latitude:      lat,
-      longitude:     lng,
-      status:        'pendiente',
-      points_awarded: 10,
+    const { error: dbError } = await supabase.rpc('create_report_with_guard', {
+      p_user_id: currentUser.id,
+      p_title: title.trim(),
+      p_description: fullDescription || null,
+      p_latitude: lat,
+      p_longitude: lng,
+      p_points_awarded: 10,
+      p_cooldown_minutes: REPORT_COOLDOWN_MINUTES,
+      p_daily_limit: REPORT_DAILY_LIMIT,
     });
 
     setIsSubmitting(false);
@@ -324,7 +359,7 @@ function ReportPanel({ lat, lng, prefillTitle, onClose, onSuccess, isDark, color
                 Nuevo reporte
               </Text>
               <Text style={{ color: textMuted, fontSize: 12, marginTop: 2 }}>
-                Suma +10 puntos a tu perfil
+                Cooldown de 15 min y maximo 5 reportes validos por dia
               </Text>
             </View>
             <Pressable
@@ -517,24 +552,31 @@ export function MapScreen({ currentUser, onReportSuccess }) {
   const [showLegend, setShowLegend]       = useState(false);
   // panel: null | {type:'point',data} | {type:'report',lat,lng,prefillTitle} | {type:'success'}
 
-  // Cargar contenedores desde Supabase
-  useEffect(() => {
-    (async () => {
-      if (!isSupabaseConfigured || !supabase) {
-        setContainers(FALLBACK_POINTS);
-        setLoadingMap(false);
-        return;
-      }
-      const { data, error } = await supabase
-        .from('containers')
-        .select('id, title, latitude, longitude, type, materials, status, color');
+  const loadMapPoints = useCallback(async () => {
+    if (!isSupabaseConfigured || !supabase) {
+      setContainers(FALLBACK_POINTS.map((point) => ({ ...point, kind: 'container', icon: '♻' })));
+      setLoadingMap(false);
+      return;
+    }
 
-      if (error || !data || data.length === 0) {
-        setContainers(FALLBACK_POINTS);
-      } else {
-        // Normalizar para que coincida con el formato esperado
-        setContainers(data.map((c) => ({
+    const [{ data: containerData, error: containerError }, { data: reportData }] = await Promise.all([
+      supabase
+        .from('containers')
+        .select('id, title, latitude, longitude, type, materials, status, color'),
+      supabase
+        .from('reports')
+        .select('id, title, description, latitude, longitude, status, created_at')
+        .not('latitude', 'is', null)
+        .not('longitude', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(80),
+    ]);
+
+    const containerPoints = containerError || !containerData || containerData.length === 0
+      ? FALLBACK_POINTS.map((point) => ({ ...point, kind: 'container', icon: '♻' }))
+      : containerData.map((c) => ({
           id:        c.id,
+          kind:      'container',
           lat:       parseFloat(c.latitude),
           lng:       parseFloat(c.longitude),
           title:     c.title,
@@ -542,11 +584,34 @@ export function MapScreen({ currentUser, onReportSuccess }) {
           materials: c.materials || [c.type],
           status:    c.status || 'activo',
           color:     c.color || '#2E9E65',
-        })));
-      }
-      setLoadingMap(false);
-    })();
+          icon:      '♻',
+        }));
+
+    const reportPoints = (reportData || []).map((report) => {
+      const meta = REPORT_STATUS_META[report.status] || REPORT_STATUS_META.pendiente;
+      return {
+        id: `report-${report.id}`,
+        kind: 'report',
+        lat: parseFloat(report.latitude),
+        lng: parseFloat(report.longitude),
+        title: report.title,
+        description: report.description,
+        status: report.status || 'pendiente',
+        type: 'Reporte',
+        materials: ['Reporte'],
+        color: meta.color,
+        icon: '!',
+      };
+    });
+
+    setContainers([...containerPoints, ...reportPoints]);
+    setLoadingMap(false);
   }, []);
+
+  // Cargar contenedores y reportes desde Supabase
+  useEffect(() => {
+    loadMapPoints();
+  }, [loadMapPoints]);
 
   // Pedir permiso de ubicación
   useEffect(() => {
@@ -570,7 +635,13 @@ export function MapScreen({ currentUser, onReportSuccess }) {
       const msg = JSON.parse(event.nativeEvent.data);
       Keyboard.dismiss();
       if (msg.type === 'PIN_TAPPED') setPanel({ type: 'point', data: msg.point });
-      if (msg.type === 'MAP_TAPPED') setPanel({ type: 'report', lat: msg.lat, lng: msg.lng, prefillTitle: '' });
+      if (msg.type === 'MAP_TAPPED') {
+        if (currentUser?.role === 'collector') {
+          sendToMap({ type: 'CLEAR_TEMP' });
+          return;
+        }
+        setPanel({ type: 'report', lat: msg.lat, lng: msg.lng, prefillTitle: '' });
+      }
     } catch (e) {}
   }
 
@@ -586,6 +657,7 @@ export function MapScreen({ currentUser, onReportSuccess }) {
   async function handleReportSuccess() {
     sendToMap({ type: 'CLEAR_TEMP' });
     setPanel({ type: 'success' });
+    await loadMapPoints();
     // Refrescar puntos del usuario en App.js
     if (onReportSuccess) await onReportSuccess();
   }
@@ -594,6 +666,9 @@ export function MapScreen({ currentUser, onReportSuccess }) {
   const filteredContainers = activeFilter === 'Todos'
     ? containers
     : containers.filter((c) => {
+        if (activeFilter === 'Reportes') {
+          return c.kind === 'report';
+        }
         const mats = Array.isArray(c.materials) ? c.materials : [c.type];
         return mats.some((m) => m.toLowerCase() === activeFilter.toLowerCase());
       });
@@ -765,6 +840,7 @@ export function MapScreen({ currentUser, onReportSuccess }) {
             onReport={handleOpenReport}
             isDark={isDark}
             colors={colors}
+            currentUser={currentUser}
           />
         )}
       </BottomSheet>

@@ -8,23 +8,42 @@ import { HomeScreen } from './src/screens/HomeScreen';
 import { MapScreen } from './src/screens/MapScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { RewardsScreen } from './src/screens/RewardsScreen';
+import { CollectorReportsScreen } from './src/screens/CollectorReportsScreen';
 import { supabase, isSupabaseConfigured } from './src/lib/supabase/client';
 import { styles } from './src/styles/appStyles';
 import { hasErrors, validateLogin, validateRegister } from './src/utils/authValidation';
 
-const tabs = [
+const citizenTabs = [
   { id: 'home', label: 'Inicio', icon: 'IN' },
   { id: 'map', label: 'Mapa', icon: 'MP' },
   { id: 'rewards', label: 'Recompensas', icon: 'RW' },
   { id: 'profile', label: 'Perfil', icon: 'PF' },
 ];
 
+const collectorTabs = [
+  { id: 'home', label: 'Inicio', icon: 'IN' },
+  { id: 'map', label: 'Mapa', icon: 'MP' },
+  { id: 'reports', label: 'Reportes', icon: 'RP' },
+  { id: 'profile', label: 'Perfil', icon: 'PF' },
+];
+
 function MainApp({ onLogout, currentUser, onSaveProfile, onReloadUser }) {
   const [activeTab, setActiveTab] = useState('home');
+  const tabs = currentUser?.role === 'collector' ? collectorTabs : citizenTabs;
+
+  useEffect(() => {
+    if (!tabs.some((tab) => tab.id === activeTab)) {
+      setActiveTab('home');
+    }
+  }, [activeTab, tabs]);
 
   const content = useMemo(() => {
     if (activeTab === 'map') {
       return <MapScreen currentUser={currentUser} onReportSuccess={onReloadUser} />;
+    }
+
+    if (activeTab === 'reports') {
+      return <CollectorReportsScreen currentUser={currentUser} onReportUpdated={onReloadUser} />;
     }
 
     if (activeTab === 'rewards') {
@@ -66,6 +85,7 @@ export default function App() {
     email: '',
     password: '',
     confirmPassword: '',
+    role: 'citizen',
   });
   const [registerErrors, setRegisterErrors] = useState({});
 
@@ -90,6 +110,7 @@ export default function App() {
       id:           user?.id,
       email,
       fullName,
+      role:         profile?.role || metadata.role || 'citizen',
       points,
       level,
       streak:       profile?.streak        ?? 0,
@@ -107,7 +128,7 @@ export default function App() {
 
     const { data } = await supabase
       .from('profiles')
-      .select('full_name, email, points, streak, best_streak, reports_count, active_days')
+      .select('full_name, email, role, points, streak, best_streak, reports_count, active_days')
       .eq('id', user.id)
       .maybeSingle();
 
@@ -216,6 +237,7 @@ export default function App() {
       options: {
         data: {
           full_name: registerForm.name.trim(),
+          role: registerForm.role || 'citizen',
         },
       },
     });

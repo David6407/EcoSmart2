@@ -18,6 +18,7 @@ export function validateLogin(values) {
 
 export function validateRegister(values) {
   const errors = {};
+  const validRoles = ['citizen', 'collector'];
 
   if (!values.name.trim()) {
     errors.name = 'El nombre es obligatorio.';
@@ -39,6 +40,10 @@ export function validateRegister(values) {
     errors.confirmPassword = 'Debes confirmar la contrasena.';
   } else if (values.confirmPassword !== values.password) {
     errors.confirmPassword = 'Las contrasenas no coinciden.';
+  }
+
+  if (!validRoles.includes(values.role)) {
+    errors.role = 'Selecciona un rol valido.';
   }
 
   return errors;
