@@ -14,10 +14,12 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 
-import { REPORT_STATUS_META } from '../../domain/constants/reportStatus';
+import { REPORT_STATUS, REPORT_STATUS_META } from '../../domain/constants/reportStatus';
+import { buildMapHTML as buildLeafletMapHTML } from '../../infrastructure/map/LeafletHtmlBuilder';
 import { useUser } from '../../shared/context/UserContext';
 import { container } from '../../shared/di/container';
 import { getFriendlyError } from '../../shared/errors/errorHandler';
+import { getDayKey } from '../../shared/utils/dateUtils';
 import { getTheme } from '../styles/appStyles';
 
 // ─────────────────────────────────────────────────────────────────
@@ -25,6 +27,18 @@ import { getTheme } from '../styles/appStyles';
 // ─────────────────────────────────────────────────────────────────
 const MATERIAL_TYPES = ['Plástico', 'Papel', 'Vidrio', 'Orgánico', 'Metal', 'Electrónico'];
 const FILTERS        = ['Todos', 'Plastico', 'Vidrio', 'Organico', 'Reportes'];
+
+const COLLECTOR_STATUS_FILTERS = ['todos', REPORT_STATUS.PENDING, REPORT_STATUS.ASSIGNED, REPORT_STATUS.IN_PROGRESS];
+const COLLECTOR_TIME_FILTERS = [
+  { id: 'all', label: 'Todo' },
+  { id: 'today', label: 'Hoy' },
+  { id: 'week', label: 'Semana' },
+];
+const COLLECTOR_ASSIGNMENT_FILTERS = [
+  { id: 'all', label: 'Todos' },
+  { id: 'mine', label: 'Mios' },
+  { id: 'unassigned', label: 'Sin asignar' },
+];
 
 const MATERIAL_ICONS = {
   Plastico:   '🥤',
@@ -46,6 +60,33 @@ const LEGEND = [
 const REPORT_COOLDOWN_MINUTES = 15;
 const REPORT_DAILY_LIMIT = 5;
 
+function isWithinWeek(value) {
+  if (!value) return false;
+  const date = new Date(value);
+  const diff = Date.now() - date.getTime();
+  return diff >= 0 && diff <= 7 * 86400000;
+}
+
+function MapFilterChip({ label, active, onPress, colors, isDark }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        backgroundColor: active ? colors.accent : (isDark ? '#1A3828' : '#EAF4ED'),
+        borderRadius: 999,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderWidth: 1,
+        borderColor: active ? colors.accent : colors.border,
+      }}
+    >
+      <Text style={{ fontSize: 12, fontWeight: '700', color: active ? '#FFF' : (isDark ? '#5AD492' : '#2E7A50') }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 // Fallback si Supabase no está configurado
 const FALLBACK_POINTS = [
   { id: 'p1', lat: 1.2136, lng: -77.2811, title: 'Punto Verde Centro',   type: 'Plastico',  materials: ['Plastico','Papel'],  color: '#2E9E65', status: 'activo'        },
@@ -56,104 +97,6 @@ const FALLBACK_POINTS = [
 
 // ─────────────────────────────────────────────────────────────────
 // HTML del mapa Leaflet
-// ─────────────────────────────────────────────────────────────────
-function buildMapHTML({ points, isDark, userLat, userLng }) {
-  const centerLat = userLat ?? 1.2136;
-  const centerLng = userLng ?? -77.2811;
-  const tileLayer = isDark
-    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-    : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-
-  return `<!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  html,body,#map{width:100%;height:100%;background:${isDark ? '#0F1F18' : '#EEF3F1'}}
-  .rpin{width:40px;height:40px;border-radius:20px;display:flex;align-items:center;justify-content:center;border:3px solid white;box-shadow:0 3px 14px rgba(0,0,0,0.3);font-size:18px;cursor:pointer;transition:transform 0.1s}
-  .rpin:active{transform:scale(0.9)}
-  .upin{width:16px;height:16px;border-radius:8px;background:#3B82F6;border:3px solid white;box-shadow:0 0 0 8px rgba(59,130,246,0.2)}
-  .tpin{width:36px;height:36px;border-radius:18px;background:#EF4444;border:3px solid white;box-shadow:0 3px 12px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:17px}
-  .leaflet-control-attribution{display:none}
-  .leaflet-control-zoom{border:none!important}
-  .leaflet-control-zoom a{background:${isDark ? '#182820' : '#fff'}!important;color:${isDark ? '#E8F5EE' : '#1A2E23'}!important;border:1px solid ${isDark ? '#2A4035' : '#E2EDE6'}!important;border-radius:10px!important;margin-bottom:4px!important}
-</style>
-</head>
-<body>
-<div id="map"></div>
-<script>
-var map=L.map('map',{zoomControl:false}).setView([${centerLat},${centerLng}],15);
-L.tileLayer('${tileLayer}',{maxZoom:19}).addTo(map);
-L.control.zoom({position:'topright'}).addTo(map);
-
-var pts=${JSON.stringify(points)};
-var tempMarker=null;
-var activeMarker=null;
-var markersById={};
-
-pts.forEach(function(p){
-  var icon=L.divIcon({
-    className:'',
-    html:'<div class="rpin" style="background:'+p.color+'">'+(p.icon||'♻')+'</div>',
-    iconSize:[40,40],
-    iconAnchor:[20,20],
-  });
-  var m=L.marker([p.lat,p.lng],{icon:icon}).addTo(map);
-  markersById[p.id]=m;
-  m.on('click',function(e){
-    L.DomEvent.stopPropagation(e);
-    // Resaltar pin seleccionado
-    if(activeMarker && activeMarker!==m){
-      activeMarker.getElement().style.opacity='1';
-    }
-    m.getElement().style.opacity='0.8';
-    activeMarker=m;
-    window.ReactNativeWebView.postMessage(JSON.stringify({type:'PIN_TAPPED',point:p}));
-  });
-});
-
-${userLat && userLng ? `
-  var uicon=L.divIcon({className:'',html:'<div class="upin"></div>',iconSize:[16,16],iconAnchor:[8,8]});
-  L.marker([${userLat},${userLng}],{icon:uicon,zIndexOffset:1000}).addTo(map);
-` : ''}
-
-map.on('click',function(e){
-  // Limpiar selección activa
-  if(activeMarker){activeMarker.getElement().style.opacity='1';activeMarker=null;}
-  if(tempMarker){map.removeLayer(tempMarker);tempMarker=null;}
-  var ti=L.divIcon({className:'',html:'<div class="tpin">📍</div>',iconSize:[36,36],iconAnchor:[18,36]});
-  tempMarker=L.marker([e.latlng.lat,e.latlng.lng],{icon:ti}).addTo(map);
-  window.ReactNativeWebView.postMessage(JSON.stringify({type:'MAP_TAPPED',lat:e.latlng.lat,lng:e.latlng.lng}));
-});
-
-document.addEventListener('message',function(e){
-  try{
-    var m=JSON.parse(e.data);
-    if(m.type==='CENTER_USER'&&m.lat&&m.lng) map.flyTo([m.lat,m.lng],16,{duration:1.2});
-    if(m.type==='FLY_TO_REPORT'&&m.id){
-      var marker=markersById['report-'+m.id]||markersById[m.id];
-      if(marker){
-        map.flyTo(marker.getLatLng(),17,{duration:1.2});
-        marker.fire('click');
-        window.ReactNativeWebView.postMessage(JSON.stringify({type:'FLY_TO_CONFIRMED',id:m.id}));
-      }
-    }
-    if(m.type==='CLEAR_TEMP'){
-      if(tempMarker){map.removeLayer(tempMarker);tempMarker=null;}
-      if(activeMarker){activeMarker.getElement().style.opacity='1';activeMarker=null;}
-    }
-  }catch(err){}
-});
-</script>
-</body>
-</html>`;
-}
-
-// ─────────────────────────────────────────────────────────────────
-// BottomSheet — Modal que escapa del overflow:hidden del phoneShell
 // ─────────────────────────────────────────────────────────────────
 function BottomSheet({ visible, onClose, children }) {
   return (
@@ -540,6 +483,8 @@ export function MapScreen({ currentUser, onReportSuccess }) {
   const isDark     = false;
   const t          = getTheme(isDark);
   const webviewRef = useRef(null);
+  const flyToSendTimerRef = useRef(null);
+  const flyToFallbackTimerRef = useRef(null);
   const { selectedReportId } = useUser();
 
   const colors = {
@@ -558,8 +503,10 @@ export function MapScreen({ currentUser, onReportSuccess }) {
   const [userLocation, setUserLocation]   = useState(null);
   const [locationError, setLocationError] = useState('');
   const [activeFilter, setActiveFilter]   = useState('Todos');
+  const [reportMapFilters, setReportMapFilters] = useState({ status: 'todos', time: 'all', assignment: 'all' });
   const [panel, setPanel]                 = useState(null);
   const [showLegend, setShowLegend]       = useState(false);
+  const [flyToWarning, setFlyToWarning]   = useState('');
   // panel: null | {type:'point',data} | {type:'report',lat,lng,prefillTitle} | {type:'success'}
 
   const loadMapPoints = useCallback(async () => {
@@ -607,6 +554,10 @@ export function MapScreen({ currentUser, onReportSuccess }) {
         title: report.title,
         description: report.description,
         status: report.status || 'pendiente',
+        collectorId: report.collector_id,
+        createdAt: report.created_at,
+        assignedAt: report.assigned_at,
+        startedAt: report.started_at,
         type: 'Reporte',
         materials: ['Reporte'],
         color: meta.color,
@@ -643,17 +594,32 @@ export function MapScreen({ currentUser, onReportSuccess }) {
   useEffect(() => {
     if (!selectedReportId || loadingMap) return;
 
-    const timeout = setTimeout(() => {
+    setFlyToWarning('');
+    clearTimeout(flyToSendTimerRef.current);
+    clearTimeout(flyToFallbackTimerRef.current);
+
+    flyToSendTimerRef.current = setTimeout(() => {
       sendToMap({ type: 'FLY_TO_REPORT', id: selectedReportId });
     }, 250);
 
-    return () => clearTimeout(timeout);
+    flyToFallbackTimerRef.current = setTimeout(() => {
+      setFlyToWarning('No se pudo confirmar el centrado del reporte. Toca el pin en el mapa si no quedo resaltado.');
+    }, 2000);
+
+    return () => {
+      clearTimeout(flyToSendTimerRef.current);
+      clearTimeout(flyToFallbackTimerRef.current);
+    };
   }, [selectedReportId, loadingMap]);
 
   function handleWebViewMessage(event) {
     try {
       const msg = JSON.parse(event.nativeEvent.data);
       Keyboard.dismiss();
+      if (msg.type === 'FLY_TO_CONFIRMED') {
+        clearTimeout(flyToFallbackTimerRef.current);
+        setFlyToWarning('');
+      }
       if (msg.type === 'PIN_TAPPED') setPanel({ type: 'point', data: msg.point });
       if (msg.type === 'MAP_TAPPED') {
         if (currentUser?.role === 'collector') {
@@ -683,11 +649,24 @@ export function MapScreen({ currentUser, onReportSuccess }) {
   }
 
   // Filtrar contenedores según el filtro activo
+  function matchesCollectorReportFilters(point) {
+    if (point.kind !== 'report' || currentUser?.role !== 'collector') return true;
+    if (reportMapFilters.status !== 'todos' && point.status !== reportMapFilters.status) return false;
+    if (reportMapFilters.assignment === 'mine' && point.collectorId !== currentUser?.id) return false;
+    if (reportMapFilters.assignment === 'unassigned' && point.collectorId) return false;
+
+    const relevantDate = point.startedAt || point.assignedAt || point.createdAt;
+    if (reportMapFilters.time === 'today' && getDayKey(relevantDate) !== getDayKey(new Date().toISOString())) return false;
+    if (reportMapFilters.time === 'week' && !isWithinWeek(relevantDate)) return false;
+
+    return true;
+  }
+
   const filteredContainers = activeFilter === 'Todos'
-    ? containers
+    ? containers.filter(matchesCollectorReportFilters)
     : containers.filter((c) => {
         if (activeFilter === 'Reportes') {
-          return c.kind === 'report';
+          return c.kind === 'report' && matchesCollectorReportFilters(c);
         }
         const mats = Array.isArray(c.materials) ? c.materials : [c.type];
         return mats.some((m) => m.toLowerCase() === activeFilter.toLowerCase());
@@ -775,6 +754,49 @@ export function MapScreen({ currentUser, onReportSuccess }) {
             })}
           </View>
         </ScrollView>
+
+        {currentUser?.role === 'collector' ? (
+          <>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {COLLECTOR_STATUS_FILTERS.map((status) => (
+                  <MapFilterChip
+                    key={status}
+                    label={status === 'todos' ? 'Todos' : REPORT_STATUS_META[status]?.label}
+                    active={reportMapFilters.status === status}
+                    onPress={() => setReportMapFilters({ ...reportMapFilters, status })}
+                    colors={colors}
+                    isDark={isDark}
+                  />
+                ))}
+              </View>
+            </ScrollView>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {COLLECTOR_TIME_FILTERS.map((item) => (
+                  <MapFilterChip
+                    key={item.id}
+                    label={item.label}
+                    active={reportMapFilters.time === item.id}
+                    onPress={() => setReportMapFilters({ ...reportMapFilters, time: item.id })}
+                    colors={colors}
+                    isDark={isDark}
+                  />
+                ))}
+                {COLLECTOR_ASSIGNMENT_FILTERS.map((item) => (
+                  <MapFilterChip
+                    key={item.id}
+                    label={item.label}
+                    active={reportMapFilters.assignment === item.id}
+                    onPress={() => setReportMapFilters({ ...reportMapFilters, assignment: item.id })}
+                    colors={colors}
+                    isDark={isDark}
+                  />
+                ))}
+              </View>
+            </ScrollView>
+          </>
+        ) : null}
       </View>
 
       {/* ── MAPA ── */}
@@ -788,7 +810,7 @@ export function MapScreen({ currentUser, onReportSuccess }) {
           <WebView
             ref={webviewRef}
             originWhitelist={['*']}
-            source={{ html: buildMapHTML({
+            source={{ html: buildLeafletMapHTML({
               points: filteredContainers,
               isDark,
               userLat: userLocation?.lat,
@@ -847,6 +869,17 @@ export function MapScreen({ currentUser, onReportSuccess }) {
             borderLeftWidth: 3, borderLeftColor: colors.error,
           }}>
             <Text style={{ color: colors.error, fontSize: 12, fontWeight: '600' }}>⚠ {locationError}</Text>
+          </View>
+        ) : null}
+
+        {flyToWarning ? (
+          <View style={{
+            position: 'absolute', top: locationError ? 62 : 12, left: 12, right: 12,
+            backgroundColor: '#FFF8E6',
+            borderRadius: 12, padding: 10,
+            borderLeftWidth: 3, borderLeftColor: '#D4A017',
+          }}>
+            <Text style={{ color: '#854F0B', fontSize: 12, fontWeight: '700' }}>{flyToWarning}</Text>
           </View>
         ) : null}
       </View>

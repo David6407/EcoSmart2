@@ -46,7 +46,13 @@ function MainApp() {
     }
 
     if (activeTab === 'reports') {
-      return <CollectorReportsScreen currentUser={currentUser} onReportUpdated={reloadUser} />;
+      return (
+        <CollectorReportsScreen
+          currentUser={currentUser}
+          onOpenMap={() => setActiveTab('map')}
+          onReportUpdated={reloadUser}
+        />
+      );
     }
 
     if (activeTab === 'rewards') {

@@ -10,6 +10,7 @@ import { EmptyState } from '../components/EmptyState';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { LoadingState } from '../components/LoadingState';
 import { ReportCard } from '../components/ReportCard';
+import { ReportDetailSheet } from '../components/ReportDetailSheet';
 import { ReportFilterBar } from '../components/ReportFilterBar';
 import { getTheme } from '../styles/appStyles';
 
@@ -18,6 +19,14 @@ function isWithinWeek(value) {
   const date = new Date(value);
   const diff = Date.now() - date.getTime();
   return diff >= 0 && diff <= 7 * 86400000;
+}
+
+function getRelevantReportDate(report) {
+  return report.resolved_at
+    || report.rejected_at
+    || report.started_at
+    || report.assigned_at
+    || report.created_at;
 }
 
 function normalizeSummary(summary) {
@@ -33,7 +42,7 @@ function normalizeSummary(summary) {
   };
 }
 
-export function CollectorReportsScreen({ currentUser, onReportUpdated }) {
+export function CollectorReportsScreen({ currentUser, onOpenMap, onReportUpdated }) {
   const isDark = false;
   const theme = getTheme(isDark);
   const { setSelectedReportId } = useUser();
@@ -57,6 +66,7 @@ export function CollectorReportsScreen({ currentUser, onReportUpdated }) {
   const [refreshing, setRefreshing] = useState(false);
   const [updatingId, setUpdatingId] = useState('');
   const [error, setError] = useState('');
+  const [inspectedReport, setInspectedReport] = useState(null);
 
   async function loadReports({ refresh = false } = {}) {
     if (!container.isSupabaseConfigured || !canManage || !currentUser?.id) {
@@ -132,6 +142,15 @@ export function CollectorReportsScreen({ currentUser, onReportUpdated }) {
     }
   }
 
+  function handleSelectReport(report) {
+    setSelectedReportId(report.id);
+    if (onOpenMap) onOpenMap();
+  }
+
+  function handleInspectReport(report) {
+    setInspectedReport(report);
+  }
+
   const filteredReports = useMemo(() => {
     const todayKey = getDayKey(new Date().toISOString());
 
@@ -139,12 +158,12 @@ export function CollectorReportsScreen({ currentUser, onReportUpdated }) {
       if (filters.status !== 'todos' && report.status !== filters.status) return false;
 
       if (filters.time === 'today') {
-        const relevantDate = report.resolved_at || report.rejected_at || report.created_at;
+        const relevantDate = getRelevantReportDate(report);
         if (getDayKey(relevantDate) !== todayKey) return false;
       }
 
       if (filters.time === 'week') {
-        const relevantDate = report.resolved_at || report.rejected_at || report.created_at;
+        const relevantDate = getRelevantReportDate(report);
         if (!isWithinWeek(relevantDate)) return false;
       }
 
@@ -152,7 +171,7 @@ export function CollectorReportsScreen({ currentUser, onReportUpdated }) {
       if (filters.assignment === 'unassigned' && report.collector_id) return false;
 
       if (filters.zone.trim()) {
-        const zone = String(report.zone || report.profiles?.zone || '').toLowerCase();
+        const zone = String(report.zone || report.reporter?.zone || report.profiles?.zone || '').toLowerCase();
         if (zone !== filters.zone.trim().toLowerCase()) return false;
       }
 
@@ -205,7 +224,8 @@ export function CollectorReportsScreen({ currentUser, onReportUpdated }) {
             currentUser={currentUser}
             busy={updatingId === report.id}
             colors={colors}
-            onSelect={() => setSelectedReportId(report.id)}
+            onSelect={() => handleSelectReport(report)}
+            onInspect={() => handleInspectReport(report)}
             onAssign={() => runAction(report, 'assign')}
             onStart={() => runAction(report, 'start')}
             onClose={() => runAction(report, 'close')}
@@ -226,6 +246,18 @@ export function CollectorReportsScreen({ currentUser, onReportUpdated }) {
           <Text key={item} style={{ color: colors.textMuted, fontSize: 12 }}>{item}</Text>
         ))}
       </View>
+
+      <ReportDetailSheet
+        report={inspectedReport}
+        visible={Boolean(inspectedReport)}
+        onClose={() => setInspectedReport(null)}
+        onOpenMap={() => {
+          if (!inspectedReport) return;
+          setInspectedReport(null);
+          handleSelectReport(inspectedReport);
+        }}
+        colors={colors}
+      />
     </ScrollView>
   );
 }

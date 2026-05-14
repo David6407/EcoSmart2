@@ -18,7 +18,7 @@ function formatCoordinates(latitude, longitude) {
   return `${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}`;
 }
 
-export function ReportCard({ report, currentUser, busy, onSelect, onAssign, onStart, onClose, onReject, colors }) {
+export function ReportCard({ report, currentUser, busy, onSelect, onInspect, onAssign, onStart, onClose, onReject, colors }) {
   const ownedByCurrentCollector = report.collector_id === currentUser?.id;
   const takenByOther = Boolean(report.collector_id && !ownedByCurrentCollector);
 
@@ -81,9 +81,15 @@ export function ReportCard({ report, currentUser, busy, onSelect, onAssign, onSt
           </Pressable>
         ) : null}
 
-        {[REPORT_STATUS.PENDING, REPORT_STATUS.ASSIGNED, REPORT_STATUS.IN_PROGRESS].includes(report.status) && !takenByOther ? (
+        {report.status === REPORT_STATUS.IN_PROGRESS && ownedByCurrentCollector ? (
           <Pressable onPress={onReject} disabled={busy} style={{ flex: 1, minWidth: 120, backgroundColor: '#FFF0F2', borderRadius: 14, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: '#F4B7C1', opacity: busy ? 0.6 : 1 }}>
             <Text style={{ color: colors.error, fontSize: 12, fontWeight: '900' }}>Rechazar</Text>
+          </Pressable>
+        ) : null}
+
+        {[REPORT_STATUS.COLLECTED, REPORT_STATUS.REJECTED, REPORT_STATUS.VALIDATED].includes(report.status) ? (
+          <Pressable onPress={onInspect} style={{ flex: 1, minWidth: 120, backgroundColor: colors.accentSoft, borderRadius: 14, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: colors.border }}>
+            <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '900' }}>Ver historial</Text>
           </Pressable>
         ) : null}
       </View>

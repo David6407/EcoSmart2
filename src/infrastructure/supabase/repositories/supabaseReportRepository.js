@@ -30,7 +30,7 @@ export function createSupabaseReportRepository() {
       ensureSupabase();
       const { data, error } = await supabase
         .from('reports')
-        .select('id, title, description, status, latitude, longitude, created_at, collector_id, assigned_at, started_at, resolved_at, rejected_at, rejection_reason')
+        .select('id, title, description, status, latitude, longitude, created_at, collector_id, assigned_at, started_at, resolved_at, rejected_at, rejection_reason, reporter:profiles!reports_user_id_fkey(zone)')
         .not('latitude', 'is', null)
         .not('longitude', 'is', null)
         .order('created_at', { ascending: false })

@@ -5,6 +5,7 @@ import { quickActions } from '../../domain/constants/appContent';
 import { container } from '../../shared/di/container';
 import { formatRelativeDate } from '../../shared/utils/dateUtils';
 import { getLevelData, getNextLevel } from '../../shared/utils/levelUtils';
+import { DailySummaryCard } from '../components/DailySummaryCard';
 import { getTheme } from '../styles/appStyles';
 
 const icon = require('../../../assets/logo.png');
@@ -29,7 +30,7 @@ function formatHours(value) {
   return `${value.toFixed(1)} h`;
 }
 
-function CollectorQuickAction({ title, subtitle, onPress, accent, cardColor, borderColor, iconEmoji }) {
+function CollectorQuickAction({ title, subtitle, onPress, accent, cardColor, borderColor, iconEmoji, iconLabel }) {
   return (
     <Pressable
       onPress={onPress}
@@ -57,7 +58,9 @@ function CollectorQuickAction({ title, subtitle, onPress, accent, cardColor, bor
           borderColor: borderColor,
         }}
       >
-        <Text style={{ fontSize: 26 }}>{iconEmoji}</Text>
+        <Text style={{ color: accent, fontSize: iconLabel ? 10 : 26, fontWeight: '900' }}>
+          {iconEmoji || iconLabel}
+        </Text>
       </View>
       <View style={{ flex: 1, gap: 4 }}>
         <Text style={{ color: '#1A2E23', fontSize: 17, fontWeight: '800' }}>{title}</Text>
@@ -88,8 +91,10 @@ export function HomeScreen({ onChangeTab, user }) {
   const [loadingActivity, setLoadingActivity] = useState(true);
   const [collectorStats, setCollectorStats] = useState({
     pendingToday: 0,
+    assignedToMe: 0,
     inProgress: 0,
     completedToday: 0,
+    rejectedToday: 0,
     averageResponseHours: 0,
     hotspotLabel: 'Sin acumulacion critica',
     hotspotCount: 0,
@@ -158,8 +163,10 @@ export function HomeScreen({ onChangeTab, user }) {
 
       setCollectorStats({
         pendingToday: stats.pendingToday,
+        assignedToMe: stats.assignedToMe,
         inProgress: stats.inProgress,
         completedToday: stats.completedToday,
+        rejectedToday: stats.rejectedToday,
         averageResponseHours: stats.averageResponseHours,
         hotspotLabel: stats.hotspotLabel,
         hotspotCount: stats.hotspotCount,
@@ -270,6 +277,19 @@ export function HomeScreen({ onChangeTab, user }) {
             </View>
           ))}
         </View>
+
+        <DailySummaryCard
+          summary={{
+            pendingToday: collectorStats.pendingToday,
+            assignedToMe: collectorStats.assignedToMe,
+            inProgress: collectorStats.inProgress,
+            completedToday: collectorStats.completedToday,
+            rejectedToday: collectorStats.rejectedToday,
+            averageResponseMinutes: collectorStats.averageResponseHours * 60,
+          }}
+          loading={loadingCollectorStats}
+          colors={colors}
+        />
 
         <View
           style={{
