@@ -2,16 +2,18 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, Text, View } from 'react-native';
 
-import { TabBar } from './src/components/TabBar';
-import { AuthScreen } from './src/screens/AuthScreen';
-import { HomeScreen } from './src/screens/HomeScreen';
-import { MapScreen } from './src/screens/MapScreen';
-import { ProfileScreen } from './src/screens/ProfileScreen';
-import { RewardsScreen } from './src/screens/RewardsScreen';
-import { CollectorReportsScreen } from './src/screens/CollectorReportsScreen';
-import { supabase, isSupabaseConfigured } from './src/lib/supabase/client';
-import { styles } from './src/styles/appStyles';
-import { hasErrors, validateLogin, validateRegister } from './src/utils/authValidation';
+import { TabBar } from './src/presentation/components/TabBar';
+import { AuthScreen } from './src/presentation/screens/AuthScreen';
+import { CollectorReportsScreen } from './src/presentation/screens/CollectorReportsScreen';
+import { HomeScreen } from './src/presentation/screens/HomeScreen';
+import { MapScreen } from './src/presentation/screens/MapScreen';
+import { ProfileScreen } from './src/presentation/screens/ProfileScreen';
+import { RewardsScreen } from './src/presentation/screens/RewardsScreen';
+import { styles } from './src/presentation/styles/appStyles';
+import { UserProvider, useUser } from './src/shared/context/UserContext';
+import { container } from './src/shared/di/container';
+import { getFriendlyError } from './src/shared/errors/errorHandler';
+import { hasErrors, validateLogin, validateRegister, validatePasswordReset } from './src/shared/utils/authValidation';
 
 const citizenTabs = [
   { id: 'home', label: 'Inicio', icon: 'IN' },
@@ -27,7 +29,8 @@ const collectorTabs = [
   { id: 'profile', label: 'Perfil', icon: 'PF' },
 ];
 
-function MainApp({ onLogout, currentUser, onSaveProfile, onReloadUser }) {
+function MainApp() {
+  const { currentUser, logout, saveProfile, reloadUser } = useUser();
   const [activeTab, setActiveTab] = useState('home');
   const tabs = currentUser?.role === 'collector' ? collectorTabs : citizenTabs;
 
@@ -39,11 +42,11 @@ function MainApp({ onLogout, currentUser, onSaveProfile, onReloadUser }) {
 
   const content = useMemo(() => {
     if (activeTab === 'map') {
-      return <MapScreen currentUser={currentUser} onReportSuccess={onReloadUser} />;
+      return <MapScreen currentUser={currentUser} onReportSuccess={reloadUser} />;
     }
 
     if (activeTab === 'reports') {
-      return <CollectorReportsScreen currentUser={currentUser} onReportUpdated={onReloadUser} />;
+      return <CollectorReportsScreen currentUser={currentUser} onReportUpdated={reloadUser} />;
     }
 
     if (activeTab === 'rewards') {
@@ -51,13 +54,11 @@ function MainApp({ onLogout, currentUser, onSaveProfile, onReloadUser }) {
     }
 
     if (activeTab === 'profile') {
-      return (
-        <ProfileScreen user={currentUser} onLogout={onLogout} onSaveProfile={onSaveProfile} />
-      );
+      return <ProfileScreen user={currentUser} onLogout={logout} onSaveProfile={saveProfile} />;
     }
 
     return <HomeScreen onChangeTab={setActiveTab} user={currentUser} />;
-  }, [activeTab, currentUser, onLogout, onSaveProfile, onReloadUser]);
+  }, [activeTab, currentUser, logout, saveProfile, reloadUser]);
 
   return (
     <SafeAreaView style={styles.appShell}>
@@ -78,8 +79,11 @@ export default function App() {
   const [authError, setAuthError] = useState('');
   const [authNotice, setAuthNotice] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
+  const [selectedReportId, setSelectedReportId] = useState(null);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [loginErrors, setLoginErrors] = useState({});
+  const [resetForm, setResetForm] = useState({ email: '' });
+  const [resetErrors, setResetErrors] = useState({});
   const [registerForm, setRegisterForm] = useState({
     name: '',
     email: '',
@@ -89,80 +93,52 @@ export default function App() {
   });
   const [registerErrors, setRegisterErrors] = useState({});
 
-  function buildCurrentUser(user, profile) {
-    const metadata = user?.user_metadata || {};
-    const email = profile?.email || user?.email || '';
-    const fullName =
-      profile?.full_name ||
-      metadata.full_name ||
-      metadata.name ||
-      (email ? email.split('@')[0] : 'Usuario EcoSmart');
+  const { authRepository } = container.repositories;
+  const {
+    loadCurrentUserUseCase,
+    loginUseCase,
+    registerUseCase,
+    requestPasswordResetUseCase,
+    updateProfileUseCase,
+  } = container.usecases;
 
-    // Nivel calculado desde puntos (no guardado en DB)
-    const points = profile?.points ?? 0;
-    const level = points >= 400 ? 5
-                : points >= 250 ? 4
-                : points >= 120 ? 3
-                : points >= 50  ? 2
-                : 1;
-
-    return {
-      id:           user?.id,
-      email,
-      fullName,
-      role:         profile?.role || metadata.role || 'citizen',
-      points,
-      level,
-      streak:       profile?.streak        ?? 0,
-      bestStreak:   profile?.best_streak   ?? 0,
-      reportsCount: profile?.reports_count ?? 0,
-      activeDays:   profile?.active_days   ?? 0,
-    };
-  }
-
-  async function loadCurrentUser(user) {
-    if (!user || !supabase) {
+  async function loadCurrentUser(authUser) {
+    if (!authUser) {
       setCurrentUser(null);
       return;
     }
 
-    const { data } = await supabase
-      .from('profiles')
-      .select('full_name, email, role, points, streak, best_streak, reports_count, active_days')
-      .eq('id', user.id)
-      .maybeSingle();
-
-    setCurrentUser(buildCurrentUser(user, data));
-
-    // Actualizar racha diaria (no-destructivo si ya se llamó hoy)
-    await supabase.rpc('update_streak', { p_user_id: user.id });
+    const user = await loadCurrentUserUseCase(authUser);
+    setCurrentUser(user);
   }
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) {
+    if (!container.isSupabaseConfigured) {
       setIsBootstrapping(false);
       return undefined;
     }
 
     let isMounted = true;
 
-    supabase.auth.getSession().then(async ({ data, error }) => {
-      if (!isMounted) {
-        return;
-      }
+    authRepository.getSession().then(async ({ data, error }) => {
+      if (!isMounted) return;
 
       if (error) {
-        setAuthError(error.message);
+        setAuthError(getFriendlyError(error));
       }
 
       setIsAuthenticated(Boolean(data.session));
       await loadCurrentUser(data.session?.user);
       setIsBootstrapping(false);
+    }).catch((error) => {
+      if (!isMounted) return;
+      setAuthError(getFriendlyError(error));
+      setIsBootstrapping(false);
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = authRepository.onAuthStateChange(async (_event, session) => {
       setIsAuthenticated(Boolean(session));
       await loadCurrentUser(session?.user);
     });
@@ -179,6 +155,7 @@ export default function App() {
     setAuthNotice('');
     setLoginErrors({});
     setRegisterErrors({});
+    setResetErrors({});
   }
 
   async function handleLogin() {
@@ -187,31 +164,18 @@ export default function App() {
     setAuthError('');
     setAuthNotice('');
 
-    if (hasErrors(errors)) {
-      return;
-    }
-
-    if (!isSupabaseConfigured || !supabase) {
-      setAuthError('Configura tu archivo .env con las credenciales de Supabase.');
-      return;
-    }
+    if (hasErrors(errors)) return;
 
     setIsSubmitting(true);
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email: loginForm.email.trim(),
-      password: loginForm.password,
-    });
-
-    setIsSubmitting(false);
-
-    if (error) {
-      setAuthError(error.message);
-      return;
+    try {
+      await loginUseCase(loginForm);
+      setRegisterErrors({});
+      setAuthError('');
+    } catch (error) {
+      setAuthError(getFriendlyError(error));
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setRegisterErrors({});
-    setAuthError('');
   }
 
   async function handleRegister() {
@@ -220,96 +184,84 @@ export default function App() {
     setAuthError('');
     setAuthNotice('');
 
-    if (hasErrors(errors)) {
-      return;
-    }
-
-    if (!isSupabaseConfigured || !supabase) {
-      setAuthError('Configura tu archivo .env con las credenciales de Supabase.');
-      return;
-    }
+    if (hasErrors(errors)) return;
 
     setIsSubmitting(true);
+    try {
+      const result = await registerUseCase(registerForm);
+      setLoginErrors({});
+      setAuthError('');
 
-    const { data, error } = await supabase.auth.signUp({
-      email: registerForm.email.trim(),
-      password: registerForm.password,
-      options: {
-        data: {
-          full_name: registerForm.name.trim(),
-          role: registerForm.role || 'citizen',
-        },
-      },
-    });
+      if (result.hasSession) {
+        setAuthNotice('Cuenta creada correctamente. Iniciando sesion...');
+        return;
+      }
 
-    setIsSubmitting(false);
-
-    if (error) {
-      setAuthError(error.message);
-      return;
+      setAuthNotice('Cuenta creada. Revisa tu correo para confirmar el registro.');
+      setAuthMode('login');
+    } catch (error) {
+      setAuthError(getFriendlyError(error));
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setLoginErrors({});
-    setAuthError('');
-
-    if (data.session) {
-      setAuthNotice('Cuenta creada correctamente. Iniciando sesion...');
-      return;
-    }
-
-    setAuthNotice('Cuenta creada. Revisa tu correo para confirmar el registro.');
-    setAuthMode('login');
   }
 
-  // Refresca el usuario desde Supabase (usado tras enviar un reporte)
+  async function handlePasswordReset() {
+    const errors = validatePasswordReset(resetForm);
+    setResetErrors(errors);
+    setAuthError('');
+    setAuthNotice('');
+
+    if (hasErrors(errors)) return;
+
+    setIsSubmitting(true);
+    try {
+      await requestPasswordResetUseCase(resetForm.email);
+      setAuthNotice('Te enviamos un enlace de recuperacion si el correo existe.');
+      setAuthMode('login');
+    } catch (error) {
+      setAuthError(getFriendlyError(error));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   async function handleReloadUser() {
-    if (!supabase) return;
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await authRepository.getCurrentAuthUser();
+
     if (user) await loadCurrentUser(user);
   }
 
   async function handleLogout() {
-    if (supabase) {
-      await supabase.auth.signOut();
-    }
-
+    await authRepository.signOut();
     setCurrentUser(null);
     setIsAuthenticated(false);
   }
 
   async function handleSaveProfile({ fullName }) {
-    const trimmedName = fullName.trim();
+    try {
+      const result = await updateProfileUseCase({ fullName });
+      setCurrentUser((current) => (
+        current ? { ...current, fullName: result.fullName } : current
+      ));
 
-    if (!trimmedName) {
-      return { ok: false, message: 'El nombre no puede estar vacio.' };
+      return { ok: true, message: 'Perfil actualizado correctamente.' };
+    } catch (error) {
+      return { ok: false, message: getFriendlyError(error, 'No se pudo actualizar el perfil.') };
     }
-
-    if (!supabase) {
-      return { ok: false, message: 'Supabase no esta configurado.' };
-    }
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      return { ok: false, message: 'No se pudo obtener el usuario actual.' };
-    }
-
-    await supabase.from('profiles').update({ full_name: trimmedName }).eq('id', user.id);
-
-    setCurrentUser((current) =>
-      current
-        ? {
-            ...current,
-            fullName: trimmedName,
-          }
-        : current
-    );
-
-    return { ok: true, message: 'Perfil actualizado correctamente.' };
   }
+
+  const userContextValue = {
+    currentUser,
+    isDark: false,
+    selectedReportId,
+    setSelectedReportId,
+    reloadUser: handleReloadUser,
+    saveProfile: handleSaveProfile,
+    logout: handleLogout,
+  };
 
   if (isBootstrapping) {
     return (
@@ -325,12 +277,9 @@ export default function App() {
 
   if (isAuthenticated) {
     return (
-      <MainApp
-        onLogout={handleLogout}
-        currentUser={currentUser}
-        onSaveProfile={handleSaveProfile}
-        onReloadUser={handleReloadUser}
-      />
+      <UserProvider value={userContextValue}>
+        <MainApp />
+      </UserProvider>
     );
   }
 
@@ -343,6 +292,9 @@ export default function App() {
         loginForm={loginForm}
         setLoginForm={setLoginForm}
         loginErrors={loginErrors}
+        resetForm={resetForm}
+        setResetForm={setResetForm}
+        resetErrors={resetErrors}
         registerForm={registerForm}
         setRegisterForm={setRegisterForm}
         registerErrors={registerErrors}
@@ -351,6 +303,7 @@ export default function App() {
         isSubmitting={isSubmitting}
         onLogin={handleLogin}
         onRegister={handleRegister}
+        onPasswordReset={handlePasswordReset}
       />
     </>
   );
