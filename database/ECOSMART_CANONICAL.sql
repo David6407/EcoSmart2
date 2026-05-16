@@ -627,11 +627,14 @@ begin
 end;
 $$;
 
+drop function if exists public.close_report(uuid, uuid, text, text);
+
 create or replace function public.close_report(
   p_report_id uuid,
   p_collector_id uuid default auth.uid(),
   p_collection_photo_url text default null,
-  p_collector_notes text default null
+  p_collector_notes text default null,
+  p_location jsonb default null
 )
 returns public.reports
 language plpgsql
@@ -660,6 +663,11 @@ begin
 
   if v_report.status <> 'en_proceso' then
     raise exception 'Solo los reportes en proceso pueden cerrarse.';
+  end if;
+
+  if nullif(btrim(coalesce(p_collection_photo_url, '')), '') is null
+     and nullif(btrim(coalesce(p_collector_notes, '')), '') is null then
+    raise exception 'El cierre requiere foto o notas de evidencia.';
   end if;
 
   if v_actor_role <> 'admin' and v_report.collector_id <> p_collector_id then
@@ -698,7 +706,10 @@ begin
     'recolectado',
     p_collector_notes,
     p_collection_photo_url,
-    jsonb_build_object('points_awarded_to_collector', v_points)
+    jsonb_build_object(
+      'points_awarded_to_collector', v_points,
+      'location', coalesce(p_location, '{}'::jsonb)
+    )
   );
 
   return v_report;
@@ -1047,9 +1058,10 @@ select
   longitude,
   collector_id,
   assigned_at,
+  started_at,
   created_at
 from public.reports
-where status in ('pendiente', 'asignado')
+where status in ('pendiente', 'asignado', 'en_proceso')
   and latitude is not null
   and longitude is not null;
 
@@ -1291,6 +1303,77 @@ create policy "Admins administran eventos"
   with check (public.current_user_role() = 'admin');
 
 -- ---------------------------------------------------------------------------
+-- Supabase Storage: report evidence
+-- ---------------------------------------------------------------------------
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'report-evidence',
+  'report-evidence',
+  false,
+  3145728,
+  array['image/jpeg', 'image/png', 'image/webp']
+)
+on conflict (id) do update
+set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "Recolectores suben evidencia asignada" on storage.objects;
+drop policy if exists "Participantes leen evidencia de reportes" on storage.objects;
+drop policy if exists "Recolectores administran su evidencia" on storage.objects;
+
+create policy "Recolectores suben evidencia asignada"
+  on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'report-evidence'
+    and public.current_user_role() in ('collector', 'admin')
+    and exists (
+      select 1
+      from public.reports report
+      where report.id = ((storage.foldername(name))[2])::uuid
+        and (
+          public.current_user_role() = 'admin'
+          or report.collector_id = auth.uid()
+        )
+    )
+  );
+
+create policy "Participantes leen evidencia de reportes"
+  on storage.objects for select to authenticated
+  using (
+    bucket_id = 'report-evidence'
+    and exists (
+      select 1
+      from public.reports report
+      where report.id = ((storage.foldername(name))[2])::uuid
+        and (
+          public.current_user_role() = 'admin'
+          or report.collector_id = auth.uid()
+          or report.user_id = auth.uid()
+        )
+    )
+  );
+
+create policy "Recolectores administran su evidencia"
+  on storage.objects for update to authenticated
+  using (
+    bucket_id = 'report-evidence'
+    and (
+      public.current_user_role() = 'admin'
+      or owner = auth.uid()
+    )
+  )
+  with check (
+    bucket_id = 'report-evidence'
+    and (
+      public.current_user_role() = 'admin'
+      or owner = auth.uid()
+    )
+  );
+
+-- ---------------------------------------------------------------------------
 -- Grants for Supabase authenticated role
 -- ---------------------------------------------------------------------------
 
@@ -1308,7 +1391,7 @@ grant execute on function public.current_user_role() to authenticated;
 grant execute on function public.create_report_with_guard(uuid, text, text, numeric, numeric, integer, integer, integer) to authenticated;
 grant execute on function public.assign_report(uuid, uuid) to authenticated;
 grant execute on function public.start_report(uuid, uuid) to authenticated;
-grant execute on function public.close_report(uuid, uuid, text, text) to authenticated;
+grant execute on function public.close_report(uuid, uuid, text, text, jsonb) to authenticated;
 grant execute on function public.reject_report(uuid, uuid, text) to authenticated;
 grant execute on function public.confirm_collection(uuid, uuid) to authenticated;
 grant execute on function public.cancel_report(uuid, uuid, text) to authenticated;

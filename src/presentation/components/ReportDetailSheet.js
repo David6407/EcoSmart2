@@ -1,6 +1,9 @@
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Image, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { REPORT_STATUS_META } from '../../domain/constants/reportStatus';
+import { container } from '../../shared/di/container';
+import { ReportTimeline } from './ReportTimeline';
 
 function formatDate(value) {
   if (!value) return 'Sin registro';
@@ -25,11 +28,43 @@ function DetailRow({ label, value, colors }) {
   );
 }
 
-export function ReportDetailSheet({ report, visible, onClose, onOpenMap, colors }) {
+export function ReportDetailSheet({ report, visible, currentUser, confirmBusy, onClose, onOpenMap, onConfirm, colors }) {
+  const [events, setEvents] = useState([]);
+  const [loadingEvents, setLoadingEvents] = useState(false);
+
+  useEffect(() => {
+    if (!visible || !report?.id || !container.isSupabaseConfigured) {
+      setEvents([]);
+      return;
+    }
+
+    let mounted = true;
+    setLoadingEvents(true);
+
+    container.usecases.loadReportTimelineUseCase(report.id)
+      .then((data) => {
+        if (!mounted) return;
+        setEvents(data);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setEvents([]);
+      })
+      .finally(() => {
+        if (!mounted) return;
+        setLoadingEvents(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [visible, report?.id]);
+
   if (!report) return null;
 
   const meta = REPORT_STATUS_META[report.status] || REPORT_STATUS_META.pendiente;
   const isRejected = report.status === 'rechazado';
+  const canConfirm = currentUser?.id === report.user_id && report.status === 'recolectado' && !report.citizen_confirmed;
 
   return (
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
@@ -92,7 +127,35 @@ export function ReportDetailSheet({ report, visible, onClose, onOpenMap, colors 
                 {report.reporter?.zone ? <DetailRow label="Zona" value={report.reporter.zone} colors={colors} /> : null}
                 {report.rejection_reason ? <DetailRow label="Motivo" value={report.rejection_reason} colors={colors} /> : null}
                 {report.collector_notes ? <DetailRow label="Notas del recolector" value={report.collector_notes} colors={colors} /> : null}
+                {report.collector?.full_name ? <DetailRow label="Recolector" value={report.collector.full_name} colors={colors} /> : null}
               </View>
+
+              {report.collection_photo_url ? (
+                <View style={{ gap: 8 }}>
+                  <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' }}>
+                    Evidencia
+                  </Text>
+                  <Image
+                    source={{ uri: report.collection_photo_url }}
+                    style={{ width: '100%', height: 190, borderRadius: 18, backgroundColor: colors.accentSoft }}
+                    resizeMode="cover"
+                  />
+                </View>
+              ) : null}
+
+              <ReportTimeline events={events} loading={loadingEvents} colors={colors} />
+
+              {canConfirm ? (
+                <Pressable
+                  onPress={() => onConfirm?.(report)}
+                  disabled={confirmBusy}
+                  style={{ backgroundColor: colors.accent, borderRadius: 14, paddingVertical: 14, alignItems: 'center', opacity: confirmBusy ? 0.55 : 1 }}
+                >
+                  <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '900' }}>
+                    {confirmBusy ? 'Confirmando...' : 'Confirmar recoleccion'}
+                  </Text>
+                </Pressable>
+              ) : null}
 
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <Pressable

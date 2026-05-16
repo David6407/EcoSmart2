@@ -4,11 +4,14 @@ import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { REPORT_STATUS } from '../../domain/constants/reportStatus';
 import { useUser } from '../../shared/context/UserContext';
 import { container } from '../../shared/di/container';
+import { useCurrentLocation } from '../../shared/hooks/useCurrentLocation';
 import { getDayKey } from '../../shared/utils/dateUtils';
 import { DailySummaryCard } from '../components/DailySummaryCard';
+import { CloseReportModal } from '../components/CloseReportModal';
 import { EmptyState } from '../components/EmptyState';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { LoadingState } from '../components/LoadingState';
+import { RejectReportModal } from '../components/RejectReportModal';
 import { ReportCard } from '../components/ReportCard';
 import { ReportDetailSheet } from '../components/ReportDetailSheet';
 import { ReportFilterBar } from '../components/ReportFilterBar';
@@ -61,12 +64,18 @@ export function CollectorReportsScreen({ currentUser, onOpenMap, onReportUpdated
 
   const [reports, setReports] = useState([]);
   const [summary, setSummary] = useState(null);
-  const [filters, setFilters] = useState({ status: 'todos', time: 'today', assignment: 'all', zone: '' });
+  const [filters, setFilters] = useState({ status: 'todos', time: 'today', assignment: 'all', zone: '', sortBy: 'urgency' });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [updatingId, setUpdatingId] = useState('');
   const [error, setError] = useState('');
   const [inspectedReport, setInspectedReport] = useState(null);
+  const [closingReport, setClosingReport] = useState(null);
+  const [rejectingReport, setRejectingReport] = useState(null);
+  const { location: collectorLocation } = useCurrentLocation({
+    enabled: canManage,
+    deniedMessage: '',
+  });
 
   async function loadReports({ refresh = false } = {}) {
     if (!container.isSupabaseConfigured || !canManage || !currentUser?.id) {
@@ -80,7 +89,9 @@ export function CollectorReportsScreen({ currentUser, onOpenMap, onReportUpdated
     if (refresh) setRefreshing(true);
 
     try {
-      const data = await container.usecases.loadCollectorDashboardUseCase(currentUser.id);
+      const data = await container.usecases.loadCollectorDashboardUseCase(currentUser.id, {
+        location: collectorLocation,
+      });
       setReports(data.reports || []);
       setSummary(normalizeSummary(data));
       setError('');
@@ -96,7 +107,7 @@ export function CollectorReportsScreen({ currentUser, onOpenMap, onReportUpdated
 
   useEffect(() => {
     loadReports();
-  }, [canManage, currentUser?.id]);
+  }, [canManage, currentUser?.id, collectorLocation?.latitude, collectorLocation?.longitude]);
 
   async function runAction(report, action) {
     setUpdatingId(report.id);
@@ -117,26 +128,60 @@ export function CollectorReportsScreen({ currentUser, onOpenMap, onReportUpdated
         });
       }
 
-      if (action === 'close') {
-        await container.usecases.closeReportUseCase({
-          reportId: report.id,
-          collectorId: currentUser.id,
-          evidence: { notes: 'Cierre operativo desde panel D3' },
-        });
-      }
-
-      if (action === 'reject') {
-        await container.usecases.rejectReportUseCase({
-          reportId: report.id,
-          collectorId: currentUser.id,
-          reason: 'No cumple criterios de recoleccion',
-        });
-      }
-
       await loadReports();
       if (onReportUpdated) await onReportUpdated();
     } catch (actionError) {
       setError(actionError?.message || 'No se pudo actualizar el reporte.');
+    } finally {
+      setUpdatingId('');
+    }
+  }
+
+  async function closeWithEvidence(evidence) {
+    if (!closingReport) return;
+
+    setUpdatingId(closingReport.id);
+    setError('');
+
+    try {
+      await container.usecases.closeReportUseCase({
+        reportId: closingReport.id,
+        collectorId: currentUser.id,
+        evidence,
+      });
+
+      setClosingReport(null);
+      await loadReports();
+      if (onReportUpdated) await onReportUpdated();
+      return true;
+    } catch (closeError) {
+      setError(closeError?.message || 'No se pudo cerrar el reporte.');
+      throw closeError;
+    } finally {
+      setUpdatingId('');
+    }
+  }
+
+  async function rejectWithReason(reason) {
+    if (!rejectingReport) return false;
+
+    setUpdatingId(rejectingReport.id);
+    setError('');
+
+    try {
+      await container.usecases.rejectReportUseCase({
+        reportId: rejectingReport.id,
+        collectorId: currentUser.id,
+        reason,
+      });
+
+      setRejectingReport(null);
+      await loadReports();
+      if (onReportUpdated) await onReportUpdated();
+      return true;
+    } catch (rejectError) {
+      setError(rejectError?.message || 'No se pudo rechazar el reporte.');
+      throw rejectError;
     } finally {
       setUpdatingId('');
     }
@@ -154,7 +199,7 @@ export function CollectorReportsScreen({ currentUser, onOpenMap, onReportUpdated
   const filteredReports = useMemo(() => {
     const todayKey = getDayKey(new Date().toISOString());
 
-    return reports.filter((report) => {
+    const filtered = reports.filter((report) => {
       if (filters.status !== 'todos' && report.status !== filters.status) return false;
 
       if (filters.time === 'today') {
@@ -176,6 +221,22 @@ export function CollectorReportsScreen({ currentUser, onOpenMap, onReportUpdated
       }
 
       return true;
+    });
+
+    return [...filtered].sort((a, b) => {
+      if (filters.sortBy === 'distance') {
+        if (a.distanceKm == null && b.distanceKm == null) return 0;
+        if (a.distanceKm == null) return 1;
+        if (b.distanceKm == null) return -1;
+        return a.distanceKm - b.distanceKm;
+      }
+
+      if (filters.sortBy === 'oldest') {
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      }
+
+      if (a.isUrgent !== b.isUrgent) return a.isUrgent ? -1 : 1;
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     });
   }, [reports, filters, currentUser?.id]);
 
@@ -210,6 +271,17 @@ export function CollectorReportsScreen({ currentUser, onOpenMap, onReportUpdated
 
       <ReportFilterBar filters={filters} onChange={setFilters} colors={colors} />
 
+      <View style={{ backgroundColor: colors.card, borderRadius: 18, padding: 14, borderWidth: 1, borderColor: colors.border, gap: 4 }}>
+        <Text style={{ color: colors.text, fontSize: 13, fontWeight: '900' }}>Orden actual</Text>
+        <Text style={{ color: colors.textMuted, fontSize: 12.5, lineHeight: 18 }}>
+          {filters.sortBy === 'distance'
+            ? 'La lista prioriza los reportes mas cercanos a tu ubicacion actual.'
+            : filters.sortBy === 'oldest'
+              ? 'La lista muestra primero los reportes mas antiguos.'
+              : 'La lista prioriza urgencias mayores a 24 horas y luego antiguedad.'}
+        </Text>
+      </View>
+
       {loading ? (
         <LoadingState message="Cargando reportes..." color={colors.accent} />
       ) : filteredReports.length === 0 ? (
@@ -228,8 +300,8 @@ export function CollectorReportsScreen({ currentUser, onOpenMap, onReportUpdated
             onInspect={() => handleInspectReport(report)}
             onAssign={() => runAction(report, 'assign')}
             onStart={() => runAction(report, 'start')}
-            onClose={() => runAction(report, 'close')}
-            onReject={() => runAction(report, 'reject')}
+            onClose={() => setClosingReport(report)}
+            onReject={() => setRejectingReport(report)}
           />
         ))
       )}
@@ -250,6 +322,7 @@ export function CollectorReportsScreen({ currentUser, onOpenMap, onReportUpdated
       <ReportDetailSheet
         report={inspectedReport}
         visible={Boolean(inspectedReport)}
+        currentUser={currentUser}
         onClose={() => setInspectedReport(null)}
         onOpenMap={() => {
           if (!inspectedReport) return;
@@ -257,6 +330,24 @@ export function CollectorReportsScreen({ currentUser, onOpenMap, onReportUpdated
           handleSelectReport(inspectedReport);
         }}
         colors={colors}
+      />
+
+      <CloseReportModal
+        visible={Boolean(closingReport)}
+        report={closingReport}
+        busy={Boolean(updatingId)}
+        colors={colors}
+        onClose={() => setClosingReport(null)}
+        onSubmit={closeWithEvidence}
+      />
+
+      <RejectReportModal
+        visible={Boolean(rejectingReport)}
+        report={rejectingReport}
+        busy={Boolean(updatingId)}
+        colors={colors}
+        onClose={() => setRejectingReport(null)}
+        onSubmit={rejectWithReason}
       />
     </ScrollView>
   );

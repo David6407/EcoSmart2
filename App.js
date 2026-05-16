@@ -63,7 +63,7 @@ function MainApp() {
       return <ProfileScreen user={currentUser} onLogout={logout} onSaveProfile={saveProfile} />;
     }
 
-    return <HomeScreen onChangeTab={setActiveTab} user={currentUser} />;
+    return <HomeScreen onChangeTab={setActiveTab} onUserUpdated={reloadUser} user={currentUser} />;
   }, [activeTab, currentUser, logout, saveProfile, reloadUser]);
 
   return (

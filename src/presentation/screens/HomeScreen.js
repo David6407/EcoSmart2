@@ -2,10 +2,14 @@ import { useEffect, useState } from 'react';
 import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { quickActions } from '../../domain/constants/appContent';
+import { REPORT_STATUS } from '../../domain/constants/reportStatus';
 import { container } from '../../shared/di/container';
 import { formatRelativeDate } from '../../shared/utils/dateUtils';
 import { getLevelData, getNextLevel } from '../../shared/utils/levelUtils';
 import { DailySummaryCard } from '../components/DailySummaryCard';
+import { ErrorMessage } from '../components/ErrorMessage';
+import { ReportDetailSheet } from '../components/ReportDetailSheet';
+import { StatusBadge } from '../components/StatusBadge';
 import { getTheme } from '../styles/appStyles';
 
 const icon = require('../../../assets/logo.png');
@@ -82,7 +86,7 @@ function CollectorQuickAction({ title, subtitle, onPress, accent, cardColor, bor
   );
 }
 
-export function HomeScreen({ onChangeTab, user }) {
+export function HomeScreen({ onChangeTab, onUserUpdated, user }) {
   const isDark = false;
   const theme = getTheme(isDark);
   const isCollector = user?.role === 'collector';
@@ -100,6 +104,11 @@ export function HomeScreen({ onChangeTab, user }) {
     hotspotCount: 0,
   });
   const [loadingCollectorStats, setLoadingCollectorStats] = useState(true);
+  const [citizenReports, setCitizenReports] = useState([]);
+  const [loadingCitizenReports, setLoadingCitizenReports] = useState(true);
+  const [selectedCitizenReport, setSelectedCitizenReport] = useState(null);
+  const [confirmingReportId, setConfirmingReportId] = useState('');
+  const [citizenReportsError, setCitizenReportsError] = useState('');
 
   const colors = {
     card: isDark ? '#182820' : '#FFFFFF',
@@ -143,6 +152,48 @@ export function HomeScreen({ onChangeTab, user }) {
       mounted = false;
     };
   }, [isCollector, user?.id]);
+
+  async function loadCitizenReports() {
+    if (isCollector || !container.isSupabaseConfigured || !user?.id) {
+      setCitizenReports([]);
+      setLoadingCitizenReports(false);
+      return;
+    }
+
+    try {
+      const data = await container.usecases.loadCitizenReportsUseCase(user.id);
+      setCitizenReports(data);
+      setCitizenReportsError('');
+    } catch (error) {
+      setCitizenReports([]);
+      setCitizenReportsError(error?.message || 'No se pudieron cargar tus reportes.');
+    } finally {
+      setLoadingCitizenReports(false);
+    }
+  }
+
+  useEffect(() => {
+    loadCitizenReports();
+  }, [isCollector, user?.id]);
+
+  async function confirmCitizenReport(report) {
+    setConfirmingReportId(report.id);
+    setCitizenReportsError('');
+
+    try {
+      await container.usecases.confirmCollectionUseCase({
+        reportId: report.id,
+        citizenId: user.id,
+      });
+      await loadCitizenReports();
+      if (onUserUpdated) await onUserUpdated();
+      setSelectedCitizenReport(null);
+    } catch (error) {
+      setCitizenReportsError(error?.message || 'No se pudo confirmar la recoleccion.');
+    } finally {
+      setConfirmingReportId('');
+    }
+  }
 
   useEffect(() => {
     if (!isCollector) {
@@ -483,6 +534,83 @@ export function HomeScreen({ onChangeTab, user }) {
       >
         <View
           style={{
+            paddingHorizontal: 18,
+            paddingTop: 18,
+            paddingBottom: 14,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.border,
+            gap: 4,
+          }}
+        >
+          <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>Mis reportes</Text>
+          <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+            Estado, evidencia y confirmacion ciudadana.
+          </Text>
+        </View>
+
+        <View style={{ padding: 16, gap: 12 }}>
+          <ErrorMessage error={citizenReportsError} color={theme.error} />
+
+          {loadingCitizenReports ? (
+            <Text style={{ color: colors.textMuted, fontSize: 13 }}>Cargando reportes...</Text>
+          ) : citizenReports.length === 0 ? (
+            <Text style={{ color: colors.textMuted, fontSize: 13, lineHeight: 19 }}>
+              Aun no has creado reportes. Cuando registres uno, podras seguir su avance aqui.
+            </Text>
+          ) : (
+            citizenReports.slice(0, 4).map((report) => {
+              const canConfirm = report.status === REPORT_STATUS.COLLECTED && !report.citizen_confirmed;
+              return (
+                <Pressable
+                  key={report.id}
+                  onPress={() => setSelectedCitizenReport(report)}
+                  style={({ pressed }) => ({
+                    borderRadius: 18,
+                    borderWidth: 1,
+                    borderColor: canConfirm ? colors.accent : colors.border,
+                    padding: 14,
+                    gap: 10,
+                    backgroundColor: canConfirm ? '#F1FBF5' : '#F8FBF9',
+                    opacity: pressed ? 0.86 : 1,
+                  })}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <Text style={{ color: colors.text, fontSize: 14.5, fontWeight: '900' }}>{report.title}</Text>
+                      <Text style={{ color: colors.textMuted, fontSize: 11 }}>
+                        {formatRelativeDate(report.created_at)}
+                      </Text>
+                    </View>
+                    <StatusBadge status={report.status} />
+                  </View>
+
+                  {canConfirm ? (
+                    <View style={{ backgroundColor: '#E4F5E9', borderRadius: 12, padding: 10 }}>
+                      <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '900' }}>Confirmacion pendiente</Text>
+                    </View>
+                  ) : null}
+
+                  {report.collection_photo_url ? (
+                    <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>Evidencia disponible</Text>
+                  ) : null}
+                </Pressable>
+              );
+            })
+          )}
+        </View>
+      </View>
+
+      <View
+        style={{
+          backgroundColor: colors.card,
+          borderRadius: 28,
+          overflow: 'hidden',
+          borderWidth: 1,
+          borderColor: colors.border,
+        }}
+      >
+        <View
+          style={{
             flexDirection: 'row',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -552,6 +680,20 @@ export function HomeScreen({ onChangeTab, user }) {
           })
         )}
       </View>
+
+      <ReportDetailSheet
+        report={selectedCitizenReport}
+        visible={Boolean(selectedCitizenReport)}
+        currentUser={user}
+        confirmBusy={confirmingReportId === selectedCitizenReport?.id}
+        onClose={() => setSelectedCitizenReport(null)}
+        onOpenMap={() => {
+          setSelectedCitizenReport(null);
+          onChangeTab('map');
+        }}
+        onConfirm={confirmCitizenReport}
+        colors={{ ...colors, error: theme.error }}
+      />
     </ScrollView>
   );
 }

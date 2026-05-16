@@ -3,7 +3,12 @@ export class IReportRepository {
   listCollectorReports() { throw new Error('Not implemented'); }
   assignReport() { throw new Error('Not implemented'); }
   startReport() { throw new Error('Not implemented'); }
+  uploadReportEvidence() { throw new Error('Not implemented'); }
   closeReport() { throw new Error('Not implemented'); }
   rejectReport() { throw new Error('Not implemented'); }
+  confirmCollection() { throw new Error('Not implemented'); }
+  getReportById() { throw new Error('Not implemented'); }
+  listCitizenReports() { throw new Error('Not implemented'); }
+  listReportEvents() { throw new Error('Not implemented'); }
   getDailySummary() { throw new Error('Not implemented'); }
 }

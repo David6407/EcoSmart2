@@ -54,6 +54,21 @@ export function ReportCard({ report, currentUser, busy, onSelect, onInspect, onA
         </Text>
       </View>
 
+      {report.isUrgent || report.distanceKm != null ? (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {report.isUrgent ? (
+            <View style={{ backgroundColor: '#FFF8E6', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: '#F0DC8A' }}>
+              <Text style={{ color: '#854F0B', fontSize: 11, fontWeight: '900' }}>Urgente +24h</Text>
+            </View>
+          ) : null}
+          {report.distanceKm != null ? (
+            <View style={{ backgroundColor: colors.accentSoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: colors.border }}>
+              <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '900' }}>{report.distanceKm.toFixed(1)} km</Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
       {report.rejection_reason ? (
         <Text style={{ color: colors.error, fontSize: 12, fontWeight: '700' }}>{report.rejection_reason}</Text>
       ) : null}

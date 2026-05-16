@@ -1,12 +1,16 @@
 import { createAssignReportUseCase } from '../../application/usecases/assignReportUseCase';
 import { createCloseReportUseCase } from '../../application/usecases/closeReportUseCase';
+import { createConfirmCollectionUseCase } from '../../application/usecases/confirmCollectionUseCase';
 import { createCreateReportUseCase } from '../../application/usecases/createReportUseCase';
 import { createLoadActivityLogsUseCase } from '../../application/usecases/loadActivityLogsUseCase';
 import { createLoadActiveMapReportsUseCase } from '../../application/usecases/loadActiveMapReportsUseCase';
+import { createLoadCitizenReportsUseCase } from '../../application/usecases/loadCitizenReportsUseCase';
 import { createLoadCollectorDashboardUseCase } from '../../application/usecases/loadCollectorDashboardUseCase';
 import { createLoadCollectorReportsUseCase } from '../../application/usecases/loadCollectorReportsUseCase';
 import { createLoadCurrentUserUseCase } from '../../application/usecases/loadCurrentUserUseCase';
 import { createLoadMapPointsUseCase } from '../../application/usecases/loadMapPointsUseCase';
+import { createLoadReportDetailUseCase } from '../../application/usecases/loadReportDetailUseCase';
+import { createLoadReportTimelineUseCase } from '../../application/usecases/loadReportTimelineUseCase';
 import { createLoadRewardsUseCase } from '../../application/usecases/loadRewardsUseCase';
 import { createLoginUseCase } from '../../application/usecases/loginUseCase';
 import { createRegisterUseCase } from '../../application/usecases/registerUseCase';
@@ -45,8 +49,12 @@ export const usecases = {
   startReportUseCase: createStartReportUseCase({ reportRepository }),
   closeReportUseCase: createCloseReportUseCase({ reportRepository }),
   rejectReportUseCase: createRejectReportUseCase({ reportRepository }),
+  confirmCollectionUseCase: createConfirmCollectionUseCase({ reportRepository }),
   loadCollectorDashboardUseCase: createLoadCollectorDashboardUseCase({ reportRepository }),
   loadCollectorReportsUseCase: createLoadCollectorReportsUseCase({ reportRepository }),
+  loadCitizenReportsUseCase: createLoadCitizenReportsUseCase({ reportRepository }),
+  loadReportDetailUseCase: createLoadReportDetailUseCase({ reportRepository }),
+  loadReportTimelineUseCase: createLoadReportTimelineUseCase({ reportRepository }),
   loadActiveMapReportsUseCase: createLoadActiveMapReportsUseCase({ mapRepository }),
   loadMapPointsUseCase: createLoadMapPointsUseCase({ mapRepository }),
   loadActivityLogsUseCase: createLoadActivityLogsUseCase({ profileRepository }),

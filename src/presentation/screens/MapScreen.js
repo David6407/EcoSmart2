@@ -20,6 +20,7 @@ import { useUser } from '../../shared/context/UserContext';
 import { container } from '../../shared/di/container';
 import { getFriendlyError } from '../../shared/errors/errorHandler';
 import { getDayKey } from '../../shared/utils/dateUtils';
+import { ReportDetailSheet } from '../components/ReportDetailSheet';
 import { getTheme } from '../styles/appStyles';
 
 // ─────────────────────────────────────────────────────────────────
@@ -76,14 +77,29 @@ function MapFilterChip({ label, active, onPress, colors, isDark }) {
         borderRadius: 999,
         paddingHorizontal: 14,
         paddingVertical: 8,
+        minWidth: 92,
         borderWidth: 1,
         borderColor: active ? colors.accent : colors.border,
+        alignItems: 'center',
       }}
     >
       <Text style={{ fontSize: 12, fontWeight: '700', color: active ? '#FFF' : (isDark ? '#5AD492' : '#2E7A50') }}>
         {label}
       </Text>
     </Pressable>
+  );
+}
+
+function MapFilterSection({ title, colors, children }) {
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        {title}
+      </Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        {children}
+      </View>
+    </View>
   );
 }
 
@@ -505,6 +521,9 @@ export function MapScreen({ currentUser, onReportSuccess }) {
   const [activeFilter, setActiveFilter]   = useState('Todos');
   const [reportMapFilters, setReportMapFilters] = useState({ status: 'todos', time: 'all', assignment: 'all' });
   const [panel, setPanel]                 = useState(null);
+  const [selectedReportDetail, setSelectedReportDetail] = useState(null);
+  const [loadingReportDetail, setLoadingReportDetail] = useState(false);
+  const [confirmingReportId, setConfirmingReportId] = useState('');
   const [showLegend, setShowLegend]       = useState(false);
   const [flyToWarning, setFlyToWarning]   = useState('');
   // panel: null | {type:'point',data} | {type:'report',lat,lng,prefillTitle} | {type:'success'}
@@ -620,7 +639,13 @@ export function MapScreen({ currentUser, onReportSuccess }) {
         clearTimeout(flyToFallbackTimerRef.current);
         setFlyToWarning('');
       }
-      if (msg.type === 'PIN_TAPPED') setPanel({ type: 'point', data: msg.point });
+      if (msg.type === 'PIN_TAPPED') {
+        if (msg.point?.kind === 'report') {
+          openReportDetail(msg.point);
+          return;
+        }
+        setPanel({ type: 'point', data: msg.point });
+      }
       if (msg.type === 'MAP_TAPPED') {
         if (currentUser?.role === 'collector') {
           sendToMap({ type: 'CLEAR_TEMP' });
@@ -640,12 +665,48 @@ export function MapScreen({ currentUser, onReportSuccess }) {
     setPanel({ type: 'report', lat, lng, prefillTitle });
   }
 
+  async function openReportDetail(point) {
+    setLoadingReportDetail(true);
+    setPanel(null);
+    setFlyToWarning('');
+
+    try {
+      const reportId = String(point.id || '').replace('report-', '');
+      const report = await container.usecases.loadReportDetailUseCase(reportId);
+      setSelectedReportDetail(report);
+    } catch (error) {
+      setFlyToWarning(getFriendlyError(error, 'No se pudo cargar el detalle del reporte.'));
+    } finally {
+      setLoadingReportDetail(false);
+    }
+  }
+
   async function handleReportSuccess() {
     sendToMap({ type: 'CLEAR_TEMP' });
     setPanel({ type: 'success' });
     await loadMapPoints();
     // Refrescar puntos del usuario en App.js
     if (onReportSuccess) await onReportSuccess();
+  }
+
+  async function handleConfirmCollection(report) {
+    setConfirmingReportId(report.id);
+    setFlyToWarning('');
+
+    try {
+      await container.usecases.confirmCollectionUseCase({
+        reportId: report.id,
+        citizenId: currentUser.id,
+      });
+      const refreshed = await container.usecases.loadReportDetailUseCase(report.id);
+      setSelectedReportDetail(refreshed);
+      await loadMapPoints();
+      if (onReportSuccess) await onReportSuccess();
+    } catch (error) {
+      setFlyToWarning(getFriendlyError(error));
+    } finally {
+      setConfirmingReportId('');
+    }
   }
 
   // Filtrar contenedores según el filtro activo
@@ -731,9 +792,15 @@ export function MapScreen({ currentUser, onReportSuccess }) {
           </View>
         )}
 
-        {/* Filtros */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+        <View style={{
+          backgroundColor: card,
+          borderRadius: 18,
+          padding: 14,
+          borderWidth: 1,
+          borderColor: border,
+          gap: 12,
+        }}>
+          <MapFilterSection title="Vista" colors={colors}>
             {FILTERS.map((f) => {
               const isActive = activeFilter === f;
               return (
@@ -742,8 +809,13 @@ export function MapScreen({ currentUser, onReportSuccess }) {
                   onPress={() => setActiveFilter(f)}
                   style={{
                     backgroundColor: isActive ? accent : (isDark ? '#1A3828' : '#EAF4ED'),
-                    borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9,
-                    borderWidth: 1, borderColor: isActive ? accent : border,
+                    borderRadius: 999,
+                    paddingHorizontal: 16,
+                    paddingVertical: 9,
+                    minWidth: 96,
+                    borderWidth: 1,
+                    borderColor: isActive ? accent : border,
+                    alignItems: 'center',
                   }}
                 >
                   <Text style={{ fontSize: 12, fontWeight: '700', color: isActive ? '#FFF' : (isDark ? '#5AD492' : '#2E7A50') }}>
@@ -752,13 +824,11 @@ export function MapScreen({ currentUser, onReportSuccess }) {
                 </Pressable>
               );
             })}
-          </View>
-        </ScrollView>
+          </MapFilterSection>
 
-        {currentUser?.role === 'collector' ? (
-          <>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
+          {currentUser?.role === 'collector' ? (
+            <>
+              <MapFilterSection title="Estado" colors={colors}>
                 {COLLECTOR_STATUS_FILTERS.map((status) => (
                   <MapFilterChip
                     key={status}
@@ -769,10 +839,9 @@ export function MapScreen({ currentUser, onReportSuccess }) {
                     isDark={isDark}
                   />
                 ))}
-              </View>
-            </ScrollView>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
+              </MapFilterSection>
+
+              <MapFilterSection title="Tiempo" colors={colors}>
                 {COLLECTOR_TIME_FILTERS.map((item) => (
                   <MapFilterChip
                     key={item.id}
@@ -783,6 +852,9 @@ export function MapScreen({ currentUser, onReportSuccess }) {
                     isDark={isDark}
                   />
                 ))}
+              </MapFilterSection>
+
+              <MapFilterSection title="Asignacion" colors={colors}>
                 {COLLECTOR_ASSIGNMENT_FILTERS.map((item) => (
                   <MapFilterChip
                     key={item.id}
@@ -793,10 +865,10 @@ export function MapScreen({ currentUser, onReportSuccess }) {
                     isDark={isDark}
                   />
                 ))}
-              </View>
-            </ScrollView>
-          </>
-        ) : null}
+              </MapFilterSection>
+            </>
+          ) : null}
+        </View>
       </View>
 
       {/* ── MAPA ── */}
@@ -823,6 +895,23 @@ export function MapScreen({ currentUser, onReportSuccess }) {
           />
         )}
 
+        {loadingReportDetail ? (
+          <View style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'rgba(255,255,255,0.28)',
+            gap: 10,
+          }}>
+            <ActivityIndicator color={accent} size="large" />
+            <Text style={{ color: text, fontSize: 13, fontWeight: '700' }}>Cargando detalle del reporte...</Text>
+          </View>
+        ) : null}
+
         {/* Badge contador */}
         {!loadingMap && (
           <View style={{
@@ -842,7 +931,7 @@ export function MapScreen({ currentUser, onReportSuccess }) {
         )}
 
         {/* Hint de interacción */}
-        {!panel && !loadingMap && (
+        {!panel && !loadingMap && !loadingReportDetail && (
           <View style={{
             position: 'absolute', bottom: 12, left: 12, right: 12,
             backgroundColor: card, borderRadius: 14,
@@ -854,7 +943,7 @@ export function MapScreen({ currentUser, onReportSuccess }) {
           }}>
             <Text style={{ fontSize: 18 }}>💡</Text>
             <Text style={{ color: textMuted, fontSize: 12, flex: 1, lineHeight: 17 }}>
-              Toca un <Text style={{ fontWeight: '800', color: text }}>pin ♻</Text> para ver info,
+              Toca un pin para ver detalle,
               o toca el mapa para <Text style={{ fontWeight: '800', color: text }}>reportar</Text>.
             </Text>
           </View>
@@ -922,6 +1011,17 @@ export function MapScreen({ currentUser, onReportSuccess }) {
           />
         )}
       </BottomSheet>
+
+      <ReportDetailSheet
+        report={selectedReportDetail}
+        visible={Boolean(selectedReportDetail)}
+        currentUser={currentUser}
+        confirmBusy={confirmingReportId === selectedReportDetail?.id}
+        onClose={() => setSelectedReportDetail(null)}
+        onOpenMap={() => setSelectedReportDetail(null)}
+        onConfirm={handleConfirmCollection}
+        colors={colors}
+      />
 
     </View>
   );
