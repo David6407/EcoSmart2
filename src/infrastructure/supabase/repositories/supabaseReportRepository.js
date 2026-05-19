@@ -24,17 +24,26 @@ async function createEvidenceUrl(pathOrUrl) {
     .from(REPORT_EVIDENCE_BUCKET)
     .createSignedUrl(pathOrUrl, 60 * 60);
 
-  if (error) return pathOrUrl;
+  if (error) return null;
   return data.signedUrl;
 }
 
 async function signReportEvidence(report) {
-  if (!report?.collection_photo_url) return report;
-  return {
-    ...report,
-    collection_photo_path: report.collection_photo_url,
-    collection_photo_url: await createEvidenceUrl(report.collection_photo_url),
-  };
+  if (!report) return report;
+
+  const signedReport = { ...report };
+
+  if (report.citizen_photo_url) {
+    signedReport.citizen_photo_path = report.citizen_photo_url;
+    signedReport.citizen_photo_url = await createEvidenceUrl(report.citizen_photo_url);
+  }
+
+  if (report.collection_photo_url) {
+    signedReport.collection_photo_path = report.collection_photo_url;
+    signedReport.collection_photo_url = await createEvidenceUrl(report.collection_photo_url);
+  }
+
+  return signedReport;
 }
 
 async function signReportsEvidence(reports = []) {
@@ -57,6 +66,7 @@ function getReportSelect() {
     'resolved_at',
     'rejected_at',
     'rejection_reason',
+    'citizen_photo_url',
     'collection_photo_url',
     'collector_notes',
     'citizen_confirmed',
@@ -76,12 +86,35 @@ export function createSupabaseReportRepository() {
         p_description: payload.description,
         p_latitude: payload.latitude,
         p_longitude: payload.longitude,
+        p_user_latitude: payload.currentLocation?.latitude ?? null,
+        p_user_longitude: payload.currentLocation?.longitude ?? null,
+        p_max_distance_meters: payload.maxDistanceMeters ?? null,
         p_points_awarded: payload.pointsAwarded ?? 10,
         p_cooldown_minutes: payload.cooldownMinutes ?? 15,
         p_daily_limit: payload.dailyLimit ?? 5,
       });
 
       if (error) throw error;
+
+      if (payload.photo?.uri) {
+        const photoPath = await this.uploadCitizenReportPhoto({
+          reportId: data,
+          userId: payload.userId,
+          photo: payload.photo,
+        });
+
+        await this.attachCitizenReportPhoto({
+          reportId: data,
+          userId: payload.userId,
+          photoUrl: photoPath,
+        });
+
+        const savedReport = await this.getReportById(data);
+        if (!savedReport?.citizen_photo_url) {
+          throw new Error('La foto se subio, pero no quedo asociada al reporte. Actualiza la funcion attach_citizen_report_photo en Supabase.');
+        }
+      }
+
       return data;
     },
 
@@ -140,6 +173,39 @@ export function createSupabaseReportRepository() {
       if (error) throw error;
 
       return path;
+    },
+
+    async uploadCitizenReportPhoto({ reportId, userId, photo }) {
+      ensureSupabase();
+      if (!photo?.uri) throw new Error('Selecciona una foto para el reporte.');
+
+      const response = await fetch(photo.uri);
+      const fileBody = await response.arrayBuffer();
+      const extension = getPhotoExtension(photo);
+      const path = `${userId}/${reportId}/citizen-${Date.now()}.${extension}`;
+
+      const { error } = await supabase.storage
+        .from(REPORT_EVIDENCE_BUCKET)
+        .upload(path, fileBody, {
+          contentType: photo.mimeType || photo.type || 'image/jpeg',
+          upsert: false,
+        });
+
+      if (error) throw error;
+
+      return path;
+    },
+
+    async attachCitizenReportPhoto({ reportId, userId, photoUrl }) {
+      ensureSupabase();
+      const { data, error } = await supabase.rpc('attach_citizen_report_photo', {
+        p_report_id: reportId,
+        p_user_id: userId,
+        p_citizen_photo_url: photoUrl || null,
+      });
+
+      if (error) throw error;
+      return data;
     },
 
     async closeReport(reportId, collectorId, evidence = {}) {

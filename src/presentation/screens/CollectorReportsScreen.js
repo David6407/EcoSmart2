@@ -48,7 +48,7 @@ function normalizeSummary(summary) {
 export function CollectorReportsScreen({ currentUser, onOpenMap, onReportUpdated }) {
   const isDark = false;
   const theme = getTheme(isDark);
-  const { setSelectedReportId } = useUser();
+  const { setSelectedReport, setSelectedReportId } = useUser();
   const canManage = currentUser?.role === 'collector';
 
   const colors = {
@@ -188,6 +188,7 @@ export function CollectorReportsScreen({ currentUser, onOpenMap, onReportUpdated
   }
 
   function handleSelectReport(report) {
+    setSelectedReport(report);
     setSelectedReportId(report.id);
     if (onOpenMap) onOpenMap();
   }

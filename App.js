@@ -12,8 +12,9 @@ import { RewardsScreen } from './src/presentation/screens/RewardsScreen';
 import { styles } from './src/presentation/styles/appStyles';
 import { UserProvider, useUser } from './src/shared/context/UserContext';
 import { container } from './src/shared/di/container';
-import { getFriendlyError } from './src/shared/errors/errorHandler';
+import { getDebugError, getFriendlyError } from './src/shared/errors/errorHandler';
 import { hasErrors, validateLogin, validateRegister, validatePasswordReset } from './src/shared/utils/authValidation';
+import { getLoginNetworkDiagnostics } from './src/shared/utils/networkDiagnostics';
 
 const citizenTabs = [
   { id: 'home', label: 'Inicio', icon: 'IN' },
@@ -30,7 +31,7 @@ const collectorTabs = [
 ];
 
 function MainApp() {
-  const { currentUser, logout, saveProfile, reloadUser } = useUser();
+  const { currentUser, logout, saveProfile, reloadUser, setSelectedReportId } = useUser();
   const [activeTab, setActiveTab] = useState('home');
   const tabs = currentUser?.role === 'collector' ? collectorTabs : citizenTabs;
 
@@ -39,6 +40,38 @@ function MainApp() {
       setActiveTab('home');
     }
   }, [activeTab, tabs]);
+
+  useEffect(() => {
+    if (!container.isSupabaseConfigured || !currentUser?.id) return undefined;
+
+    let mounted = true;
+    container.usecases.registerPushNotificationsUseCase(currentUser.id)
+      .catch(() => {
+        if (!mounted) return;
+      });
+
+    return () => { mounted = false; };
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    const subscription = container.repositories.pushService.addNotificationResponseListener((response) => {
+      const data = response?.notification?.request?.content?.data || {};
+
+      if (data.reportId) {
+        setSelectedReportId(String(data.reportId));
+        setActiveTab('map');
+        return;
+      }
+
+      if (data.screen === 'profile') {
+        setActiveTab('profile');
+      }
+    });
+
+    return () => {
+      subscription?.remove?.();
+    };
+  }, [setSelectedReportId]);
 
   const content = useMemo(() => {
     if (activeTab === 'map') {
@@ -86,6 +119,7 @@ export default function App() {
   const [authNotice, setAuthNotice] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
   const [selectedReportId, setSelectedReportId] = useState(null);
+  const [selectedReport, setSelectedReport] = useState(null);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [loginErrors, setLoginErrors] = useState({});
   const [resetForm, setResetForm] = useState({ email: '' });
@@ -178,7 +212,10 @@ export default function App() {
       setRegisterErrors({});
       setAuthError('');
     } catch (error) {
-      setAuthError(getFriendlyError(error));
+      const friendlyError = getFriendlyError(error);
+      const debugError = getDebugError(error);
+      const diagnostics = await getLoginNetworkDiagnostics();
+      setAuthError(debugError ? `${friendlyError} (${debugError}; ${diagnostics})` : `${friendlyError} (${diagnostics})`);
     } finally {
       setIsSubmitting(false);
     }
@@ -263,7 +300,9 @@ export default function App() {
     currentUser,
     isDark: false,
     selectedReportId,
+    selectedReport,
     setSelectedReportId,
+    setSelectedReport,
     reloadUser: handleReloadUser,
     saveProfile: handleSaveProfile,
     logout: handleLogout,

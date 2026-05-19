@@ -20,24 +20,3 @@ export const profileOptions = [
   { id: 'pf-5', label: '¿Cómo funciona?' },
   { id: 'pf-4', label: 'Cerrar sesion' },
 ];
-
-export const notificationPreferences = [
-  {
-    id: 'nt-1',
-    title: 'Recordatorios de recoleccion',
-    description: 'Avisos antes del horario de tu sector.',
-    enabled: true,
-  },
-  {
-    id: 'nt-2',
-    title: 'Nuevas recompensas',
-    description: 'Alertas cuando haya beneficios nuevos.',
-    enabled: true,
-  },
-  {
-    id: 'nt-3',
-    title: 'Estado de reportes',
-    description: 'Actualizaciones sobre incidencias enviadas.',
-    enabled: false,
-  },
-];

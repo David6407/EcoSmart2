@@ -9,15 +9,19 @@ import { createLoadCollectorDashboardUseCase } from '../../application/usecases/
 import { createLoadCollectorReportsUseCase } from '../../application/usecases/loadCollectorReportsUseCase';
 import { createLoadCurrentUserUseCase } from '../../application/usecases/loadCurrentUserUseCase';
 import { createLoadMapPointsUseCase } from '../../application/usecases/loadMapPointsUseCase';
+import { createLoadNotificationPreferencesUseCase } from '../../application/usecases/loadNotificationPreferencesUseCase';
 import { createLoadReportDetailUseCase } from '../../application/usecases/loadReportDetailUseCase';
 import { createLoadReportTimelineUseCase } from '../../application/usecases/loadReportTimelineUseCase';
 import { createLoadRewardsUseCase } from '../../application/usecases/loadRewardsUseCase';
 import { createLoginUseCase } from '../../application/usecases/loginUseCase';
 import { createRegisterUseCase } from '../../application/usecases/registerUseCase';
+import { createRegisterPushNotificationsUseCase } from '../../application/usecases/registerPushNotificationsUseCase';
 import { createRejectReportUseCase } from '../../application/usecases/rejectReportUseCase';
 import { createRequestPasswordResetUseCase } from '../../application/usecases/requestPasswordResetUseCase';
 import { createStartReportUseCase } from '../../application/usecases/startReportUseCase';
+import { createUpdateNotificationPreferenceUseCase } from '../../application/usecases/updateNotificationPreferenceUseCase';
 import { createUpdateProfileUseCase } from '../../application/usecases/updateProfileUseCase';
+import { createExpoPushService } from '../../infrastructure/notifications/expoPushService';
 import { isSupabaseConfigured } from '../../infrastructure/supabase/client';
 import { createSupabaseAuthRepository } from '../../infrastructure/supabase/repositories/supabaseAuthRepository';
 import { createSupabaseMapRepository } from '../../infrastructure/supabase/repositories/supabaseMapRepository';
@@ -30,6 +34,7 @@ const profileRepository = createSupabaseProfileRepository();
 const reportRepository = createSupabaseReportRepository();
 const mapRepository = createSupabaseMapRepository();
 const rewardRepository = createSupabaseRewardRepository();
+const pushService = createExpoPushService();
 
 export const repositories = {
   authRepository,
@@ -37,6 +42,7 @@ export const repositories = {
   reportRepository,
   mapRepository,
   rewardRepository,
+  pushService,
 };
 
 export const usecases = {
@@ -60,6 +66,9 @@ export const usecases = {
   loadActivityLogsUseCase: createLoadActivityLogsUseCase({ profileRepository }),
   loadRewardsUseCase: createLoadRewardsUseCase({ rewardRepository }),
   updateProfileUseCase: createUpdateProfileUseCase({ authRepository, profileRepository }),
+  registerPushNotificationsUseCase: createRegisterPushNotificationsUseCase({ profileRepository, pushService }),
+  loadNotificationPreferencesUseCase: createLoadNotificationPreferencesUseCase({ profileRepository }),
+  updateNotificationPreferenceUseCase: createUpdateNotificationPreferenceUseCase({ profileRepository }),
 };
 
 export const container = {

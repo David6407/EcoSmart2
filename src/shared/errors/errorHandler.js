@@ -21,6 +21,19 @@ export function getFriendlyError(error, fallback = 'Ocurrio un error inesperado.
   return match?.message || rawMessage;
 }
 
+export function getDebugError(error) {
+  if (!error) return '';
+
+  const parts = [
+    error.name,
+    error.message,
+    error.status ? `status ${error.status}` : '',
+    error.code ? `code ${error.code}` : '',
+  ].filter(Boolean);
+
+  return parts.join(' | ');
+}
+
 export function normalizeResultError(error, fallback) {
   return {
     ok: false,

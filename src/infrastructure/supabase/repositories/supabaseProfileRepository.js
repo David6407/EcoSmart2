@@ -50,5 +50,50 @@ export function createSupabaseProfileRepository() {
       if (error) throw error;
       return data || [];
     },
+
+    async listNotificationPreferences(userId) {
+      ensureSupabase();
+      const { data, error } = await supabase
+        .from('notification_preferences')
+        .select('preference_key, enabled')
+        .eq('user_id', userId);
+
+      if (error) throw error;
+      return data || [];
+    },
+
+    async upsertNotificationPreference({ userId, preferenceKey, enabled }) {
+      ensureSupabase();
+      const { error } = await supabase
+        .from('notification_preferences')
+        .upsert({
+          user_id: userId,
+          preference_key: preferenceKey,
+          enabled,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id,preference_key' });
+
+      if (error) throw error;
+      return { ok: true };
+    },
+
+    async upsertPushToken({ userId, expoPushToken, platform, deviceName, projectId, appVersion }) {
+      ensureSupabase();
+      const { error } = await supabase
+        .from('notification_push_tokens')
+        .upsert({
+          user_id: userId,
+          expo_push_token: expoPushToken,
+          platform,
+          device_name: deviceName,
+          project_id: projectId,
+          app_version: appVersion,
+          enabled: true,
+          last_seen_at: new Date().toISOString(),
+        }, { onConflict: 'expo_push_token' });
+
+      if (error) throw error;
+      return { ok: true };
+    },
   };
 }

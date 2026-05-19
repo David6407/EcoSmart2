@@ -265,6 +265,158 @@ begin
 end;
 $$;
 
+create or replace function public.report_evidence_report_id(p_object_name text)
+returns uuid
+language plpgsql
+immutable
+as $$
+declare
+  v_folders text[] := storage.foldername(p_object_name);
+  v_folder text;
+begin
+  if array_length(v_folders, 1) >= 2 then
+    begin
+      return v_folders[2]::uuid;
+    exception
+      when invalid_text_representation then
+        null;
+    end;
+  end if;
+
+  foreach v_folder in array v_folders
+  loop
+    begin
+      return v_folder::uuid;
+    exception
+      when invalid_text_representation then
+        null;
+    end;
+  end loop;
+
+  return null;
+end;
+$$;
+
+create or replace function public.can_write_report_evidence(p_object_name text)
+returns boolean
+language plpgsql
+security definer
+stable
+set search_path = public, storage
+as $$
+declare
+  v_report_id uuid := public.report_evidence_report_id(p_object_name);
+  v_role text := public.current_user_role();
+begin
+  if v_report_id is null then
+    return false;
+  end if;
+
+  if v_role = 'admin' then
+    return true;
+  end if;
+
+  if v_role = 'collector' then
+    return exists (
+      select 1
+      from public.reports report
+      where report.id = v_report_id
+        and report.collector_id = auth.uid()
+        and report.status in ('asignado', 'en_proceso', 'recolectado')
+    );
+  end if;
+
+  if v_role = 'citizen' then
+    return exists (
+      select 1
+      from public.reports report
+      where report.id = v_report_id
+        and report.user_id = auth.uid()
+    );
+  end if;
+
+  return false;
+end;
+$$;
+
+create or replace function public.attach_citizen_report_photo(
+  p_report_id uuid,
+  p_user_id uuid default auth.uid(),
+  p_citizen_photo_url text default null
+)
+returns public.reports
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_report public.reports%rowtype;
+  v_role text := public.current_user_role();
+begin
+  if auth.uid() is distinct from p_user_id and v_role <> 'admin' then
+    raise exception 'No autorizado para adjuntar esta foto.';
+  end if;
+
+  select *
+  into v_report
+  from public.reports
+  where id = p_report_id
+  for update;
+
+  if not found then
+    raise exception 'Reporte no encontrado.';
+  end if;
+
+  if v_role <> 'admin' and v_report.user_id <> p_user_id then
+    raise exception 'Este reporte pertenece a otro usuario.';
+  end if;
+
+  update public.reports
+  set citizen_photo_url = nullif(btrim(coalesce(p_citizen_photo_url, '')), '')
+  where id = p_report_id
+  returning * into v_report;
+
+  return v_report;
+end;
+$$;
+
+create or replace function public.can_read_report_evidence(p_object_name text)
+returns boolean
+language plpgsql
+security definer
+stable
+set search_path = public, storage
+as $$
+declare
+  v_report_id uuid := public.report_evidence_report_id(p_object_name);
+  v_role text := public.current_user_role();
+begin
+  if v_report_id is null then
+    return false;
+  end if;
+
+  if v_role = 'admin' then
+    return true;
+  end if;
+
+  if v_role = 'collector' then
+    return exists (
+      select 1
+      from public.reports report
+      where report.id = v_report_id
+        and report.status in ('pendiente', 'asignado', 'en_proceso', 'recolectado')
+    );
+  end if;
+
+  return exists (
+    select 1
+    from public.reports report
+    where report.id = v_report_id
+      and report.user_id = auth.uid()
+  );
+end;
+$$;
+
 create or replace function public.award_points(
   p_user_id uuid,
   p_points integer,
@@ -1328,32 +1480,14 @@ create policy "Recolectores suben evidencia asignada"
   on storage.objects for insert to authenticated
   with check (
     bucket_id = 'report-evidence'
-    and public.current_user_role() in ('collector', 'admin')
-    and exists (
-      select 1
-      from public.reports report
-      where report.id = ((storage.foldername(name))[2])::uuid
-        and (
-          public.current_user_role() = 'admin'
-          or report.collector_id = auth.uid()
-        )
-    )
+    and public.can_write_report_evidence(name)
   );
 
 create policy "Participantes leen evidencia de reportes"
   on storage.objects for select to authenticated
   using (
     bucket_id = 'report-evidence'
-    and exists (
-      select 1
-      from public.reports report
-      where report.id = ((storage.foldername(name))[2])::uuid
-        and (
-          public.current_user_role() = 'admin'
-          or report.collector_id = auth.uid()
-          or report.user_id = auth.uid()
-        )
-    )
+    and public.can_read_report_evidence(name)
   );
 
 create policy "Recolectores administran su evidencia"
@@ -1388,6 +1522,10 @@ grant select on public.active_reports_map to authenticated;
 
 grant execute on function public.calculate_level(integer) to authenticated;
 grant execute on function public.current_user_role() to authenticated;
+grant execute on function public.report_evidence_report_id(text) to authenticated;
+grant execute on function public.can_write_report_evidence(text) to authenticated;
+grant execute on function public.can_read_report_evidence(text) to authenticated;
+grant execute on function public.attach_citizen_report_photo(uuid, uuid, text) to authenticated;
 grant execute on function public.create_report_with_guard(uuid, text, text, numeric, numeric, integer, integer, integer) to authenticated;
 grant execute on function public.assign_report(uuid, uuid) to authenticated;
 grant execute on function public.start_report(uuid, uuid) to authenticated;
@@ -1430,3 +1568,89 @@ where not exists (
 );
 
 -- End of EcoSmart canonical database schema.
+
+-- ============================================================
+-- EcoSmart fix: eliminar firma duplicada de create_report_with_guard
+-- El canonical creó la de 8 params, el patch creó la de 9.
+-- Postgres no puede elegir entre las dos → error "ambiguous".
+-- Solución: eliminar la vieja y dejar solo la de 9 parámetros.
+-- ============================================================
+
+-- 1. Eliminar la firma vieja de 8 parámetros (sin p_citizen_photo_url)
+drop function if exists public.create_report_with_guard(
+  uuid, text, text, numeric, numeric, integer, integer, integer
+);
+
+-- 2. Asegurarse de que la firma de 9 parámetros existe y es correcta
+create or replace function public.create_report_with_guard(
+  p_user_id           uuid,
+  p_title             text,
+  p_description       text,
+  p_latitude          numeric,
+  p_longitude         numeric,
+  p_points_awarded    integer default 10,
+  p_cooldown_minutes  integer default 15,
+  p_daily_limit       integer default 5,
+  p_citizen_photo_url text    default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_latest_created_at timestamptz;
+  v_today_reports     integer;
+  v_report_id         uuid;
+begin
+  if auth.uid() is distinct from p_user_id then
+    raise exception 'No autorizado para crear este reporte.';
+  end if;
+
+  if public.current_user_role() = 'collector' then
+    raise exception 'Las cuentas recolectoras no crean reportes ciudadanos.';
+  end if;
+
+  select max(created_at) into v_latest_created_at
+  from public.reports
+  where user_id = p_user_id;
+
+  if v_latest_created_at is not null
+     and v_latest_created_at > now() - make_interval(mins => p_cooldown_minutes) then
+    raise exception 'Debes esperar % minutos antes de enviar otro reporte.', p_cooldown_minutes;
+  end if;
+
+  select count(*) into v_today_reports
+  from public.reports
+  where user_id = p_user_id
+    and created_at >= date_trunc('day', now())
+    and status <> 'cancelado';
+
+  if v_today_reports >= p_daily_limit then
+    raise exception 'Ya alcanzaste el limite diario de % reportes.', p_daily_limit;
+  end if;
+
+  insert into public.reports (
+    user_id, title, description, status,
+    latitude, longitude, points_awarded, validated,
+    citizen_photo_url
+  ) values (
+    p_user_id,
+    btrim(p_title),
+    nullif(btrim(coalesce(p_description, '')), ''),
+    'pendiente',
+    p_latitude,
+    p_longitude,
+    greatest(coalesce(p_points_awarded, 10), 0),
+    false,
+    nullif(btrim(coalesce(p_citizen_photo_url, '')), '')
+  )
+  returning id into v_report_id;
+
+  return v_report_id;
+end;
+$$;
+
+grant execute on function public.create_report_with_guard(
+  uuid, text, text, numeric, numeric, integer, integer, integer, text
+) to authenticated;

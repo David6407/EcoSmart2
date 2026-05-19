@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, LayoutAnimation, Platform, Pressable, ScrollView, Text, TextInput, UIManager, View } from 'react-native';
 
-import { notificationPreferences, profileOptions } from '../../domain/constants/appContent';
+import { profileOptions } from '../../domain/constants/appContent';
 import { ROLES } from '../../domain/constants/roles';
 import { container } from '../../shared/di/container';
+import { getFriendlyError } from '../../shared/errors/errorHandler';
 import { formatRelativeDate } from '../../shared/utils/dateUtils';
 import { LEVELS } from '../../shared/utils/levelUtils';
 import { getTheme } from '../styles/appStyles';
@@ -125,17 +126,75 @@ function HistoryPanel({ userId, colors }) {
   );
 }
 
-function NotificationsPanel({ colors }) {
-  const [items, setItems] = useState(notificationPreferences);
+function NotificationsPanel({ user, colors }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [savingKey, setSavingKey] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadPreferences() {
+      setLoading(true);
+      setError('');
+      try {
+        const data = await container.usecases.loadNotificationPreferencesUseCase({
+          userId: user?.id,
+          role: user?.role,
+        });
+        if (mounted) setItems(data);
+      } catch (loadError) {
+        if (mounted) setError(getFriendlyError(loadError, 'No se pudieron cargar las preferencias.'));
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    loadPreferences();
+    return () => { mounted = false; };
+  }, [user?.id, user?.role]);
+
+  async function togglePreference(item) {
+    const nextEnabled = !item.enabled;
+    setItems((current) => current.map((row) => row.key === item.key ? { ...row, enabled: nextEnabled } : row));
+    setSavingKey(item.key);
+    setError('');
+
+    try {
+      await container.usecases.updateNotificationPreferenceUseCase({
+        userId: user?.id,
+        key: item.key,
+        enabled: nextEnabled,
+      });
+    } catch (updateError) {
+      setItems((current) => current.map((row) => row.key === item.key ? { ...row, enabled: item.enabled } : row));
+      setError(getFriendlyError(updateError, 'No se pudo guardar la preferencia.'));
+    } finally {
+      setSavingKey('');
+    }
+  }
+
+  if (loading) {
+    return <View style={{ padding: 24, alignItems: 'center' }}><ActivityIndicator color={colors.accent} /></View>;
+  }
+
+  if (items.length === 0) {
+    return <Text style={{ color: colors.textMuted, padding: 20, textAlign: 'center' }}>No hay preferencias disponibles para tu rol.</Text>;
+  }
 
   return (
-    <View style={{ padding: 16 }}>
+    <View style={{ padding: 16, gap: error ? 12 : 0 }}>
+      {error ? (
+        <Text style={{ color: colors.error, fontSize: 12, fontWeight: '700' }}>{error}</Text>
+      ) : null}
       {items.map((item, index) => (
         <View key={item.id}>
           {index > 0 && <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 12 }} />}
           <Pressable
-            onPress={() => setItems((current) => current.map((row) => row.id === item.id ? { ...row, enabled: !row.enabled } : row))}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}
+            onPress={() => togglePreference(item)}
+            disabled={savingKey === item.key}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 12, opacity: savingKey === item.key ? 0.65 : 1 }}
           >
             <View style={{ flex: 1 }}>
               <Text style={{ color: colors.text, fontSize: 13, fontWeight: '800' }}>{item.title}</Text>
@@ -247,7 +306,7 @@ export function ProfileScreen({ user, onLogout, onSaveProfile }) {
             : option.label === 'Historial de acciones'
               ? <HistoryPanel userId={user?.id} colors={colors} />
               : option.label === 'Notificaciones'
-                ? <NotificationsPanel colors={colors} />
+                ? <NotificationsPanel user={user} colors={colors} />
                 : option.label === '¿Cómo funciona?'
                   ? <HowItWorksPanel user={user} colors={colors} />
                   : null;
