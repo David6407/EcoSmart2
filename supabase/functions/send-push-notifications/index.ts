@@ -16,6 +16,13 @@ type PushToken = {
   expo_push_token: string;
 };
 
+type ExpoPushTicket = {
+  status: 'ok' | 'error';
+  id?: string;
+  message?: string;
+  details?: Record<string, unknown>;
+};
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -121,6 +128,18 @@ Deno.serve(async () => {
 
         if (!response.ok) {
           throw new Error(`Expo push API responded ${response.status}: ${await response.text()}`);
+        }
+
+        const result = await response.json() as { data?: ExpoPushTicket[] };
+        const ticketErrors = (result.data || [])
+          .filter((ticket) => ticket.status === 'error')
+          .map((ticket) => {
+            const detail = ticket.details ? ` ${JSON.stringify(ticket.details)}` : '';
+            return `${ticket.message || 'Expo push ticket error.'}${detail}`;
+          });
+
+        if (ticketErrors.length > 0) {
+          throw new Error(ticketErrors.join(' | '));
         }
       }
 

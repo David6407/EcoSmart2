@@ -1,4 +1,4 @@
--- Fix PostgREST/Supabase RPC lookup for close_report.
+-- EcoSmart fix: award report points to citizens, not collectors.
 -- Run this in the Supabase SQL editor for the active project.
 
 drop function if exists public.close_report(uuid, uuid, text, text);
@@ -92,6 +92,71 @@ begin
 end;
 $$;
 
+create or replace function public.confirm_collection(
+  p_report_id uuid,
+  p_citizen_id uuid default auth.uid()
+)
+returns public.reports
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_report public.reports%rowtype;
+  v_actor_id uuid := auth.uid();
+begin
+  if auth.uid() is distinct from p_citizen_id then
+    raise exception 'No autorizado para confirmar este reporte.';
+  end if;
+
+  select *
+  into v_report
+  from public.reports
+  where id = p_report_id
+  for update;
+
+  if not found then
+    raise exception 'Reporte no encontrado.';
+  end if;
+
+  if v_report.user_id <> p_citizen_id then
+    raise exception 'Solo el ciudadano propietario puede confirmar la recoleccion.';
+  end if;
+
+  if v_report.status <> 'recolectado' then
+    raise exception 'Solo los reportes recolectados pueden confirmarse.';
+  end if;
+
+  if v_report.citizen_confirmed then
+    return v_report;
+  end if;
+
+  update public.reports
+  set
+    status = 'validado',
+    citizen_confirmed = true,
+    citizen_confirmed_at = now(),
+    validated = true,
+    validated_at = now()
+  where id = p_report_id
+  returning * into v_report;
+
+  perform public.log_report_event(
+    p_report_id,
+    v_actor_id,
+    'confirmado'::public.report_event_type,
+    'recolectado',
+    'validado',
+    'Confirmacion ciudadana',
+    null,
+    jsonb_build_object('points_awarded_to_citizen', 0)
+  );
+
+  return v_report;
+end;
+$$;
+
 grant execute on function public.close_report(uuid, uuid, text, text, jsonb) to authenticated;
+grant execute on function public.confirm_collection(uuid, uuid) to authenticated;
 
 notify pgrst, 'reload schema';

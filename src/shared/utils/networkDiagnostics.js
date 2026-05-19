@@ -1,5 +1,13 @@
 import { supabaseConfig } from '../../infrastructure/supabase/client';
 
+function getHost(url) {
+  try {
+    return new URL(url).host;
+  } catch {
+    return 'URL invalida';
+  }
+}
+
 async function checkUrl(label, url, options = {}) {
   const timeoutMs = options.timeoutMs || 8000;
   const controller = new AbortController();
@@ -25,11 +33,17 @@ export async function getLoginNetworkDiagnostics() {
     checkUrl('Internet', 'https://example.com'),
   ];
 
-  if (supabaseConfig.url && supabaseConfig.hasAnonKey) {
+  if (supabaseConfig.url && supabaseConfig.hasKey) {
+    const supabaseHost = getHost(supabaseConfig.url);
     checks.push(
-      checkUrl('Supabase', `${supabaseConfig.url}/auth/v1/health`, {
+      checkUrl(`Supabase auth ${supabaseHost}`, `${supabaseConfig.url}/auth/v1/health`, {
         headers: {
-          apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+          apikey: supabaseConfig.key,
+        },
+      }),
+      checkUrl(`Supabase rest ${supabaseHost}`, `${supabaseConfig.url}/rest/v1/`, {
+        headers: {
+          apikey: supabaseConfig.key,
         },
       })
     );

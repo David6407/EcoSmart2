@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "94623259459",
+    "project_id": "ecosmart-86b6b",
+    "storage_bucket": "ecosmart-86b6b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:94623259459:android:74170c3d8a5c17435dadf6",
+        "android_client_info": {
+          "package_name": "com.davi6407.EcoSmart"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB1UKJnfTFZK7N000tjKq6kr09au3hNDRY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

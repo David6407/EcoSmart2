@@ -844,10 +844,10 @@ begin
   where id = v_report.collector_id;
 
   perform public.award_points(
-    v_report.collector_id,
+    v_report.user_id,
     v_points,
-    'recoleccion',
-    'Reporte cerrado: ' || v_report.title
+    'reporte_recolectado',
+    'Reporte recolectado: ' || v_report.title
   );
 
   perform public.log_report_event(
@@ -859,7 +859,8 @@ begin
     p_collector_notes,
     p_collection_photo_url,
     jsonb_build_object(
-      'points_awarded_to_collector', v_points,
+      'points_awarded_to_collector', 0,
+      'points_awarded_to_citizen', v_points,
       'location', coalesce(p_location, '{}'::jsonb)
     )
   );
@@ -991,13 +992,6 @@ begin
   where id = p_report_id
   returning * into v_report;
 
-  perform public.award_points(
-    v_report.user_id,
-    5,
-    'confirmacion_ciudadana',
-    'Recoleccion confirmada: ' || v_report.title
-  );
-
   perform public.log_report_event(
     p_report_id,
     v_actor_id,
@@ -1006,7 +1000,7 @@ begin
     'validado',
     'Confirmacion ciudadana',
     null,
-    jsonb_build_object('points_awarded_to_citizen', 5)
+    jsonb_build_object('points_awarded_to_citizen', 0)
   );
 
   return v_report;
