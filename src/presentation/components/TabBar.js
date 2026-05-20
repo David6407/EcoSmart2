@@ -4,12 +4,13 @@ import homeIcon from '../../../assets/TabBarIcons/home.png';
 import mapIcon from '../../../assets/TabBarIcons/map.png';
 import rewardsIcon from '../../../assets/TabBarIcons/rewards.png';
 import profileIcon from '../../../assets/TabBarIcons/profile.png';
+import alertIcon from '../../../assets/TabBarIcons/alert.png';
 
 const TAB_ICONS = {
   home:    { active: homeIcon, inactive: homeIcon },
   map:     { active: mapIcon, inactive: mapIcon },
   rewards: { active: rewardsIcon, inactive: rewardsIcon },
-  reports: { active: mapIcon, inactive: mapIcon },
+  reports: { active: alertIcon, inactive: alertIcon },
   profile: { active: profileIcon, inactive: profileIcon },
 };
 
@@ -21,8 +22,7 @@ const TAB_LABELS = {
   profile: 'Perfil',
 };
 
-export function TabBar({ tabs, activeTab, onTabPress }) {
-  const isDark = false;
+export function TabBar({ tabs, activeTab, onTabPress, isDark = false }) {
   const t = getTheme(isDark);
 
   const bg     = isDark ? '#182820' : '#FFFFFF';

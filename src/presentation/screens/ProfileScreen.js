@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, LayoutAnimation, Platform, Pressable, ScrollView, Text, TextInput, UIManager, View } from 'react-native';
+import { ActivityIndicator, Image, LayoutAnimation, Platform, Pressable, ScrollView, Text, TextInput, UIManager, View } from 'react-native';
 
 import { profileOptions } from '../../domain/constants/appContent';
 import { ROLES } from '../../domain/constants/roles';
@@ -8,6 +8,15 @@ import { getFriendlyError } from '../../shared/errors/errorHandler';
 import { formatRelativeDate } from '../../shared/utils/dateUtils';
 import { LEVELS } from '../../shared/utils/levelUtils';
 import { getTheme } from '../styles/appStyles';
+
+const profileIcons = {
+  'Editar perfil': require('../../../assets/ProfileIcons/edit.png'),
+  'Historial de acciones': require('../../../assets/ProfileIcons/history.png'),
+  Notificaciones: require('../../../assets/ProfileIcons/notification.png'),
+  '¿Cómo funciona?': require('../../../assets/ProfileIcons/help.png'),
+  'Â¿CÃ³mo funciona?': require('../../../assets/ProfileIcons/help.png'),
+  'Cerrar sesion': require('../../../assets/ProfileIcons/logout.png'),
+};
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -238,10 +247,19 @@ function HowItWorksPanel({ user, colors }) {
 
 function OptionRow({ option, active, onPress, colors, children }) {
   const isLogout = option.label === 'Cerrar sesion';
+  const optionIcon = profileIcons[option.label];
+  const iconColor = isLogout ? colors.error : colors.textMuted;
 
   return (
     <View>
       <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}>
+        {optionIcon ? (
+          <Image
+            source={optionIcon}
+            style={{ width: 22, height: 22, tintColor: iconColor, opacity: isLogout ? 1 : 0.72 }}
+            resizeMode="contain"
+          />
+        ) : null}
         <Text style={{ flex: 1, color: isLogout ? colors.error : colors.text, fontSize: 15, fontWeight: '800' }}>{option.label}</Text>
         {!isLogout ? <Text style={{ color: colors.textMuted, fontSize: 20 }}>{active ? '⌄' : '›'}</Text> : null}
       </Pressable>
@@ -250,8 +268,7 @@ function OptionRow({ option, active, onPress, colors, children }) {
   );
 }
 
-export function ProfileScreen({ user, onLogout, onSaveProfile }) {
-  const isDark = false;
+export function ProfileScreen({ user, onLogout, onSaveProfile, isDark = false }) {
   const t = getTheme(isDark);
   const [activeSection, setActiveSection] = useState('');
 
@@ -261,6 +278,7 @@ export function ProfileScreen({ user, onLogout, onSaveProfile }) {
     text: isDark ? '#E8F5EE' : '#1A2E23',
     textMuted: isDark ? '#7FAE94' : '#617180',
     inputBg: isDark ? '#1E3228' : '#F4FAF6',
+    bg: isDark ? '#0F1F18' : '#EEF3F1',
     accent: t.accent,
     accentSoft: isDark ? '#1A3828' : '#E4F5E9',
     error: t.error,
@@ -279,7 +297,7 @@ export function ProfileScreen({ user, onLogout, onSaveProfile }) {
   const initials = (user?.fullName || 'U').split(' ').map((word) => word[0]).slice(0, 2).join('').toUpperCase();
 
   return (
-    <ScrollView style={{ backgroundColor: '#EEF3F1', flex: 1 }} contentContainerStyle={{ padding: 18, paddingBottom: 110, gap: 16 }} showsVerticalScrollIndicator={false}>
+    <ScrollView style={{ backgroundColor: colors.bg, flex: 1 }} contentContainerStyle={{ padding: 18, paddingBottom: 110, gap: 16 }} showsVerticalScrollIndicator={false}>
       <View style={{ paddingTop: 6, gap: 3 }}>
         <Text style={{ color: colors.textMuted, fontSize: 13, fontWeight: '600' }}>Tu cuenta</Text>
         <Text style={{ color: colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.8 }}>Perfil</Text>
@@ -293,7 +311,9 @@ export function ProfileScreen({ user, onLogout, onSaveProfile }) {
           <Text style={{ color: '#FFF', fontSize: 20, fontWeight: '900' }}>{user?.fullName || 'Usuario EcoSmart'}</Text>
           <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13 }}>{user?.email || 'correo@ecosmart.app'}</Text>
           <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '800' }}>
-            {user?.role === ROLES.COLLECTOR ? 'Recolector' : 'Ciudadano'} · Nivel {user?.level ?? 1} · {user?.points ?? 0} pts
+            {user?.role === ROLES.COLLECTOR
+              ? 'Recolector'
+              : `Ciudadano · Nivel ${user?.level ?? 1} · ${user?.points ?? 0} pts`}
           </Text>
         </View>
       </View>

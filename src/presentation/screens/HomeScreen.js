@@ -13,6 +13,17 @@ import { StatusBadge } from '../components/StatusBadge';
 import { getTheme } from '../styles/appStyles';
 
 const icon = require('../../../assets/logo.png');
+const collectorDoneIcon = require('../../../assets/HomeIcons/RecolectorIcons/done.png');
+const collectorPendingIcon = require('../../../assets/HomeIcons/RecolectorIcons/pending.png');
+const collectorInProgressIcon = require('../../../assets/HomeIcons/RecolectorIcons/inprogress.png');
+const collectorCompletedIcon = require('../../../assets/HomeIcons/RecolectorIcons/completed.png');
+const collectorMapIcon = require('../../../assets/HomeIcons/RecolectorIcons/map.png');
+const collectorReportIcon = require('../../../assets/HomeIcons/RecolectorIcons/report.png');
+const citizenStreakIcon = require('../../../assets/HomeIcons/CitizenIcons/streak.png');
+const citizenReportSendIcon = require('../../../assets/HomeIcons/CitizenIcons/reportsend.png');
+const citizenLevelIcon = require('../../../assets/HomeIcons/CitizenIcons/level.png');
+const citizenMapIcon = require('../../../assets/HomeIcons/CitizenIcons/map.png');
+const citizenRewardsIcon = require('../../../assets/HomeIcons/CitizenIcons/rewards.png');
 
 const ACTION_ICONS = {
   reporte: { icon: 'Reporte', label: 'Reporte enviado' },
@@ -34,7 +45,21 @@ function formatHours(value) {
   return `${value.toFixed(1)} h`;
 }
 
-function CollectorQuickAction({ title, subtitle, onPress, accent, cardColor, borderColor, iconEmoji, iconLabel }) {
+function CollectorQuickAction({
+  title,
+  subtitle,
+  onPress,
+  accent,
+  cardColor,
+  borderColor,
+  iconEmoji,
+  iconLabel,
+  iconSource,
+  iconBg = '#FFFFFF',
+  iconTint,
+  titleColor = '#1A2E23',
+  subtitleColor = '#617180',
+}) {
   return (
     <Pressable
       onPress={onPress}
@@ -55,20 +80,24 @@ function CollectorQuickAction({ title, subtitle, onPress, accent, cardColor, bor
           width: 52,
           height: 52,
           borderRadius: 16,
-          backgroundColor: '#FFFFFF',
+          backgroundColor: iconBg,
           alignItems: 'center',
           justifyContent: 'center',
           borderWidth: 1,
           borderColor: borderColor,
         }}
       >
-        <Text style={{ color: accent, fontSize: iconLabel ? 10 : 26, fontWeight: '900' }}>
-          {iconEmoji || iconLabel}
-        </Text>
+        {iconSource ? (
+          <Image source={iconSource} style={{ width: 30, height: 30, tintColor: iconTint }} resizeMode="contain" />
+        ) : (
+          <Text style={{ color: accent, fontSize: iconLabel ? 10 : 26, fontWeight: '900' }}>
+            {iconEmoji || iconLabel}
+          </Text>
+        )}
       </View>
       <View style={{ flex: 1, gap: 4 }}>
-        <Text style={{ color: '#1A2E23', fontSize: 17, fontWeight: '800' }}>{title}</Text>
-        <Text style={{ color: '#617180', fontSize: 12.5, lineHeight: 18 }}>{subtitle}</Text>
+        <Text style={{ color: titleColor, fontSize: 17, fontWeight: '800' }}>{title}</Text>
+        <Text style={{ color: subtitleColor, fontSize: 12.5, lineHeight: 18 }}>{subtitle}</Text>
       </View>
       <View
         style={{
@@ -86,8 +115,7 @@ function CollectorQuickAction({ title, subtitle, onPress, accent, cardColor, bor
   );
 }
 
-export function HomeScreen({ onChangeTab, onUserUpdated, user }) {
-  const isDark = false;
+export function HomeScreen({ onChangeTab, onUserUpdated, user, isDark = false }) {
   const theme = getTheme(isDark);
   const isCollector = user?.role === 'collector';
 
@@ -249,7 +277,7 @@ export function HomeScreen({ onChangeTab, onUserUpdated, user }) {
               backgroundColor: '#E4F5E9', borderRadius: 999,
               alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4,
             }}>
-              <Text style={{ fontSize: 13 }}>🦺</Text>
+              <Image source={collectorDoneIcon} style={{ width: 14, height: 14 }} resizeMode="contain" />
               <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800' }}>Recolector</Text>
             </View>
           </View>
@@ -283,13 +311,11 @@ export function HomeScreen({ onChangeTab, onUserUpdated, user }) {
           <View style={{ position: 'absolute', right: 20, bottom: -20, width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.06)' }} />
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '700', textTransform: 'uppercase' }}>
-              Panel del recolector
+              Panel de Control
             </Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Text style={{ fontSize: 36 }}>
-              {loadingCollectorStats ? '⏳' : collectorStats.pendingToday > 0 ? '🚨' : '✅'}
-            </Text>
+            <Image source={collectorDoneIcon} style={{ width: 42, height: 42 }} resizeMode="contain" />
             <Text style={{ color: '#FFF', fontSize: 28, fontWeight: '900', lineHeight: 34, flex: 1 }}>
               {loadingCollectorStats
                 ? 'Cargando...'
@@ -305,9 +331,9 @@ export function HomeScreen({ onChangeTab, onUserUpdated, user }) {
 
         <View style={{ flexDirection: 'row', gap: 10 }}>
           {[
-            { label: 'Pendientes hoy', value: collectorStats.pendingToday, emoji: '📬' },
-            { label: 'En proceso', value: collectorStats.inProgress, emoji: '⚙️' },
-            { label: 'Completados hoy', value: collectorStats.completedToday, emoji: '✅' },
+            { label: 'Pendientes hoy', value: collectorStats.pendingToday, icon: collectorPendingIcon },
+            { label: 'En proceso', value: collectorStats.inProgress, icon: collectorInProgressIcon },
+            { label: 'Completados hoy', value: collectorStats.completedToday, icon: collectorCompletedIcon },
           ].map((item) => (
             <View
               key={item.label}
@@ -322,7 +348,7 @@ export function HomeScreen({ onChangeTab, onUserUpdated, user }) {
                 borderColor: colors.border,
               }}
             >
-              <Text style={{ fontSize: 20 }}>{item.emoji}</Text>
+              <Image source={item.icon} style={{ width: 24, height: 24 }} resizeMode="contain" />
               <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900' }}>{loadingCollectorStats ? '--' : item.value}</Text>
               <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '600', textAlign: 'center' }}>{item.label}</Text>
             </View>
@@ -342,65 +368,7 @@ export function HomeScreen({ onChangeTab, onUserUpdated, user }) {
           colors={colors}
         />
 
-        <View
-          style={{
-            backgroundColor: colors.card,
-            borderRadius: 28,
-            padding: 18,
-            borderWidth: 1,
-            borderColor: colors.border,
-            gap: 16,
-          }}
-        >
-          
-          <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>Indicadores operativos</Text>
 
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <View
-              style={{
-                flex: 1,
-                backgroundColor: '#F4FAF6',
-                borderRadius: 18,
-                padding: 14,
-                borderWidth: 1,
-                borderColor: colors.border,
-                gap: 5,
-              }}
-            >
-              <Text style={{ fontSize: 22 }}>⏱️</Text>
-              <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' }}>
-                Tiempo promedio
-              </Text>
-              <Text style={{ color: colors.text, fontSize: 24, fontWeight: '900' }}>
-                {loadingCollectorStats ? '--' : formatHours(collectorStats.averageResponseHours)}
-              </Text>
-              <Text style={{ color: colors.textMuted, fontSize: 12 }}>Desde que entra hasta que se cierra.</Text>
-            </View>
-
-            <View
-              style={{
-                flex: 1,
-                backgroundColor: '#FFF8E6',
-                borderRadius: 18,
-                padding: 14,
-                borderWidth: 1,
-                borderColor: '#F0DC8A',
-                gap: 5,
-              }}
-            >
-              <Text style={{ fontSize: 22 }}>📍</Text>
-              <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' }}>
-                Zona caliente
-              </Text>
-              <Text style={{ color: colors.text, fontSize: 17, fontWeight: '900' }}>
-                {loadingCollectorStats ? '--' : collectorStats.hotspotLabel}
-              </Text>
-              <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-                {loadingCollectorStats ? 'Cargando...' : `${collectorStats.hotspotCount} reportes activos`}
-              </Text>
-            </View>
-          </View>
-        </View>
 
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }}>Acciones rapidas</Text>
 
@@ -411,7 +379,7 @@ export function HomeScreen({ onChangeTab, onUserUpdated, user }) {
           accent={colors.accent}
           cardColor="#EBF9F1"
           borderColor="#C0EDD4"
-          iconEmoji="🗺️"
+          iconSource={collectorMapIcon}
         />
 
         <CollectorQuickAction
@@ -421,7 +389,7 @@ export function HomeScreen({ onChangeTab, onUserUpdated, user }) {
           accent="#1976D2"
           cardColor="#EAF2FF"
           borderColor="#C8DAFF"
-          iconEmoji="📋"
+          iconSource={collectorReportIcon}
         />
       </ScrollView>
     );
@@ -478,9 +446,9 @@ export function HomeScreen({ onChangeTab, onUserUpdated, user }) {
 
       <View style={{ flexDirection: 'row', gap: 10 }}>
         {[
-          { label: streak === 1 ? 'dia de racha' : 'dias de racha', value: streak },
-          { label: reportsCount === 1 ? 'reporte enviado' : 'reportes enviados', value: reportsCount },
-          { label: 'nivel actual', value: currentLvl.level },
+          { label: streak === 1 ? 'dia de racha' : 'Dias de racha', value: streak, icon: citizenStreakIcon, iconSize: 26 },
+          { label: reportsCount === 1 ? 'reporte enviado' : 'Total de reportes enviados', value: reportsCount, icon: citizenReportSendIcon, iconSize: 40, tint: isDark ? colors.accent : undefined },
+          { label: 'Nivel actual', value: currentLvl.level, icon: citizenLevelIcon, iconSize: 34, tint: isDark ? colors.accent : undefined },
         ].map((item) => (
           <View
             key={item.label}
@@ -495,6 +463,7 @@ export function HomeScreen({ onChangeTab, onUserUpdated, user }) {
               borderColor: colors.border,
             }}
           >
+            <Image source={item.icon} style={{ width: item.iconSize, height: item.iconSize, tintColor: item.tint }} resizeMode="contain" />
             <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900' }}>{item.value}</Text>
             <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '600', textAlign: 'center' }}>{item.label}</Text>
           </View>
@@ -505,9 +474,14 @@ export function HomeScreen({ onChangeTab, onUserUpdated, user }) {
 
       {quickActions.map((action) => {
         const isRewards = action.title === 'Recompensas';
-        const cardColor = isRewards ? '#FFF8E6' : '#EBF9F1';
-        const borderColor = isRewards ? '#F0DC8A' : '#C0EDD4';
-        const iconLabel = isRewards ? 'PTS' : 'MAP';
+        const cardColor = isRewards
+          ? (isDark ? '#2A2718' : '#FFF8E6')
+          : (isDark ? '#132B20' : '#EBF9F1');
+        const borderColor = isRewards
+          ? (isDark ? '#5E4B13' : '#F0DC8A')
+          : (isDark ? '#24563A' : '#C0EDD4');
+        const iconSource = isRewards ? citizenRewardsIcon : citizenMapIcon;
+        const actionAccent = isRewards ? '#E5BA32' : colors.accent;
 
         return (
           <CollectorQuickAction
@@ -515,10 +489,14 @@ export function HomeScreen({ onChangeTab, onUserUpdated, user }) {
             title={action.title}
             subtitle={action.subtitle}
             onPress={() => onChangeTab(isRewards ? 'rewards' : 'map')}
-            accent={isRewards ? '#D4A017' : colors.accent}
+            accent={actionAccent}
             cardColor={cardColor}
             borderColor={borderColor}
-            iconLabel={iconLabel}
+            iconSource={iconSource}
+            iconBg={isDark ? '#182820' : '#FFFFFF'}
+            iconTint={isDark && !isRewards ? actionAccent : undefined}
+            titleColor={colors.text}
+            subtitleColor={colors.textMuted}
           />
         );
       })}
@@ -570,7 +548,9 @@ export function HomeScreen({ onChangeTab, onUserUpdated, user }) {
                     borderColor: canConfirm ? colors.accent : colors.border,
                     padding: 14,
                     gap: 10,
-                    backgroundColor: canConfirm ? '#F1FBF5' : '#F8FBF9',
+                    backgroundColor: canConfirm
+                      ? (isDark ? '#183326' : '#F1FBF5')
+                      : (isDark ? '#14231B' : '#F8FBF9'),
                     opacity: pressed ? 0.86 : 1,
                   })}
                 >
@@ -585,7 +565,7 @@ export function HomeScreen({ onChangeTab, onUserUpdated, user }) {
                   </View>
 
                   {canConfirm ? (
-                    <View style={{ backgroundColor: '#E4F5E9', borderRadius: 12, padding: 10 }}>
+                    <View style={{ backgroundColor: isDark ? '#1A3828' : '#E4F5E9', borderRadius: 12, padding: 10 }}>
                       <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '900' }}>Confirmacion pendiente</Text>
                     </View>
                   ) : null}
@@ -653,12 +633,13 @@ export function HomeScreen({ onChangeTab, onUserUpdated, user }) {
         ) : (
           recentActivity.map((item, index) => {
             const meta = ACTION_ICONS[item.action] || { icon: 'Accion', label: item.action };
+            const activityIcon = item.action === 'racha' ? citizenStreakIcon : citizenRewardsIcon;
             return (
               <View key={item.id}>
                 {index > 0 && <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 18 }} />}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 18, paddingVertical: 14 }}>
                   <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ color: colors.accent, fontSize: 10, fontWeight: '900' }}>{meta.icon}</Text>
+                    <Image source={activityIcon} style={{ width: 24, height: 24 }} resizeMode="contain" />
                   </View>
                   <View style={{ flex: 1, gap: 3 }}>
                     <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>{meta.label}</Text>

@@ -27,6 +27,7 @@ function LeafDecoration({ color }) {
 }
 
 export function AuthScreen({
+  isDark = false,
   authMode,
   onModeChange,
   loginForm,
@@ -45,7 +46,6 @@ export function AuthScreen({
   authNotice,
   isSubmitting,
 }) {
-  const isDark = false;
   const theme = getTheme(isDark);
   const s = getAuthStyles(isDark);
 

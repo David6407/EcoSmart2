@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, Text, View } from 'react-native';
 
 import { container } from '../../shared/di/container';
 import { LEVELS, getLevelData } from '../../shared/utils/levelUtils';
 import { getTheme } from '../styles/appStyles';
 
-export function RewardsScreen({ user }) {
-  const isDark = false;
+const rewardStreakIcon = require('../../../assets/RewardsIcons/streak.png');
+const rewardReportSendIcon = require('../../../assets/RewardsIcons/reportsend.png');
+const rewardLevelIcon = require('../../../assets/RewardsIcons/level.png');
+const rewardGiftIcon = require('../../../assets/RewardsIcons/gift.png');
+
+export function RewardsScreen({ user, isDark = false }) {
   const t = getTheme(isDark);
 
   const card = isDark ? '#182820' : '#FFFFFF';
@@ -81,11 +85,12 @@ export function RewardsScreen({ user }) {
 
       <View style={{ flexDirection: 'row', gap: 10 }}>
         {[
-          { value: streak, label: streak === 1 ? 'dia racha' : 'dias racha' },
-          { value: reportsCount, label: reportsCount === 1 ? 'reporte' : 'reportes' },
-          { value: currentLvl.level, label: 'nivel actual' },
+          { value: streak, label: streak === 1 ? 'dia racha' : 'Dias de racha', icon: rewardStreakIcon, iconSize: 24 },
+          { value: reportsCount, label: reportsCount === 1 ? 'reporte' : 'Total de reportes enviados', icon: rewardReportSendIcon, iconSize: 32, tint: isDark ? accent : undefined },
+          { value: currentLvl.level, label: 'Nivel actual', icon: rewardLevelIcon, iconSize: 32, tint: isDark ? accent : undefined },
         ].map((item) => (
           <View key={item.label} style={{ flex: 1, backgroundColor: card, borderRadius: 20, paddingVertical: 14, alignItems: 'center', gap: 5, borderWidth: 1, borderColor: border }}>
+            <Image source={item.icon} style={{ width: item.iconSize, height: item.iconSize, tintColor: item.tint }} resizeMode="contain" />
             <Text style={{ color: text, fontSize: 20, fontWeight: '900' }}>{item.value}</Text>
             <Text style={{ color: textMuted, fontSize: 10, fontWeight: '600', textAlign: 'center' }}>{item.label}</Text>
           </View>
@@ -133,8 +138,8 @@ export function RewardsScreen({ user }) {
               <View key={reward.id}>
                 {index > 0 && <View style={{ height: 1, backgroundColor: border, marginHorizontal: 18 }} />}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 18, paddingVertical: 16 }}>
-                  <View style={{ width: 50, height: 50, borderRadius: 16, backgroundColor: canRedeem ? accentSoft : '#F4F4F4', alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ color: reward.accent_color || accent, fontSize: 13, fontWeight: '900' }}>{reward.icon}</Text>
+                  <View style={{ width: 50, height: 50, borderRadius: 16, backgroundColor: canRedeem ? accentSoft : (isDark ? '#1E3228' : '#F4F4F4'), alignItems: 'center', justifyContent: 'center' }}>
+                    <Image source={rewardGiftIcon} style={{ width: 28, height: 28 }} resizeMode="contain" />
                   </View>
                   <View style={{ flex: 1, gap: 6 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>

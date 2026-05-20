@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
-import { SafeAreaView, Text, View } from 'react-native';
+import { SafeAreaView, Text, useColorScheme, View } from 'react-native';
 
 import { TabBar } from './src/presentation/components/TabBar';
 import { AuthScreen } from './src/presentation/screens/AuthScreen';
@@ -9,7 +9,7 @@ import { HomeScreen } from './src/presentation/screens/HomeScreen';
 import { MapScreen } from './src/presentation/screens/MapScreen';
 import { ProfileScreen } from './src/presentation/screens/ProfileScreen';
 import { RewardsScreen } from './src/presentation/screens/RewardsScreen';
-import { styles } from './src/presentation/styles/appStyles';
+import { getTheme, styles } from './src/presentation/styles/appStyles';
 import { UserProvider, useUser } from './src/shared/context/UserContext';
 import { container } from './src/shared/di/container';
 import { getDebugError, getFriendlyError } from './src/shared/errors/errorHandler';
@@ -31,9 +31,10 @@ const collectorTabs = [
 ];
 
 function MainApp() {
-  const { currentUser, logout, saveProfile, reloadUser, setSelectedReportId } = useUser();
+  const { currentUser, isDark, logout, saveProfile, reloadUser, setSelectedReportId } = useUser();
   const [activeTab, setActiveTab] = useState('home');
   const tabs = currentUser?.role === 'collector' ? collectorTabs : citizenTabs;
+  const theme = getTheme(isDark);
 
   useEffect(() => {
     if (!tabs.some((tab) => tab.id === activeTab)) {
@@ -75,7 +76,7 @@ function MainApp() {
 
   const content = useMemo(() => {
     if (activeTab === 'map') {
-      return <MapScreen currentUser={currentUser} onReportSuccess={reloadUser} />;
+      return <MapScreen currentUser={currentUser} onReportSuccess={reloadUser} isDark={isDark} />;
     }
 
     if (activeTab === 'reports') {
@@ -84,33 +85,37 @@ function MainApp() {
           currentUser={currentUser}
           onOpenMap={() => setActiveTab('map')}
           onReportUpdated={reloadUser}
+          isDark={isDark}
         />
       );
     }
 
     if (activeTab === 'rewards') {
-      return <RewardsScreen user={currentUser} />;
+      return <RewardsScreen user={currentUser} isDark={isDark} />;
     }
 
     if (activeTab === 'profile') {
-      return <ProfileScreen user={currentUser} onLogout={logout} onSaveProfile={saveProfile} />;
+      return <ProfileScreen user={currentUser} onLogout={logout} onSaveProfile={saveProfile} isDark={isDark} />;
     }
 
-    return <HomeScreen onChangeTab={setActiveTab} onUserUpdated={reloadUser} user={currentUser} />;
-  }, [activeTab, currentUser, logout, saveProfile, reloadUser]);
+    return <HomeScreen onChangeTab={setActiveTab} onUserUpdated={reloadUser} user={currentUser} isDark={isDark} />;
+  }, [activeTab, currentUser, isDark, logout, saveProfile, reloadUser]);
 
   return (
-    <SafeAreaView style={styles.appShell}>
-      <StatusBar style="dark" />
-      <View style={styles.phoneShell}>
+    <SafeAreaView style={[styles.appShell, { backgroundColor: isDark ? '#07130E' : '#E9EFED' }]}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <View style={[styles.phoneShell, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
         {content}
-        <TabBar tabs={tabs} activeTab={activeTab} onTabPress={setActiveTab} />
+        <TabBar tabs={tabs} activeTab={activeTab} onTabPress={setActiveTab} isDark={isDark} />
       </View>
     </SafeAreaView>
   );
 }
 
 export default function App() {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const theme = getTheme(isDark);
   const [authMode, setAuthMode] = useState('login');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
@@ -298,7 +303,7 @@ export default function App() {
 
   const userContextValue = {
     currentUser,
-    isDark: false,
+    isDark,
     selectedReportId,
     selectedReport,
     setSelectedReportId,
@@ -310,11 +315,11 @@ export default function App() {
 
   if (isBootstrapping) {
     return (
-      <SafeAreaView style={styles.authScreen}>
-        <StatusBar style="dark" />
+      <SafeAreaView style={[styles.authScreen, { backgroundColor: theme.bg }]}>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
         <View style={[styles.authContent, { alignItems: 'center' }]}>
-          <Text style={styles.authTitle}>Cargando sesion...</Text>
-          <Text style={styles.authSubtitle}>Preparando EcoSmart para conectarse con Supabase.</Text>
+          <Text style={[styles.authTitle, { color: theme.text }]}>Cargando sesion...</Text>
+          <Text style={[styles.authSubtitle, { color: theme.textMuted }]}>Preparando EcoSmart para conectarse con Supabase.</Text>
         </View>
       </SafeAreaView>
     );
@@ -330,8 +335,9 @@ export default function App() {
 
   return (
     <>
-      <StatusBar style="dark" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <AuthScreen
+        isDark={isDark}
         authMode={authMode}
         onModeChange={handleAuthModeChange}
         loginForm={loginForm}

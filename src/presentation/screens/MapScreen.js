@@ -25,6 +25,9 @@ import { calculateDistanceMeters } from '../../shared/utils/geoUtils';
 import { ReportDetailSheet } from '../components/ReportDetailSheet';
 import { getTheme } from '../styles/appStyles';
 
+const mapHelpIcon = require('../../../assets/MapIcons/maphelp.png');
+const locateIcon = require('../../../assets/MapIcons/locate.png');
+
 // ─────────────────────────────────────────────────────────────────
 // Constantes
 // ─────────────────────────────────────────────────────────────────
@@ -692,8 +695,7 @@ function SuccessPanel({ onClose, isDark, colors }) {
 // ─────────────────────────────────────────────────────────────────
 // Pantalla principal
 // ─────────────────────────────────────────────────────────────────
-export function MapScreen({ currentUser, onReportSuccess }) {
-  const isDark     = false;
+export function MapScreen({ currentUser, onReportSuccess, isDark = false }) {
   const t          = getTheme(isDark);
   const webviewRef = useRef(null);
   const flyToSendTimerRef     = useRef(null);
@@ -944,7 +946,7 @@ export function MapScreen({ currentUser, onReportSuccess }) {
                 borderWidth: 1, borderColor: border, opacity: pressed ? 0.7 : 1,
               })}
             >
-              <Text style={{ fontSize: 18 }}>🗺️</Text>
+              <Image source={mapHelpIcon} style={{ width: 22, height: 22 }} resizeMode="contain" />
             </Pressable>
             <Pressable
               onPress={() => userLocation && sendToMap({ type: 'CENTER_USER', lat: userLocation.lat, lng: userLocation.lng })}
@@ -955,7 +957,7 @@ export function MapScreen({ currentUser, onReportSuccess }) {
                 borderWidth: 1, borderColor: border, opacity: pressed ? 0.7 : 1,
               })}
             >
-              <Text style={{ fontSize: 18 }}>📍</Text>
+              <Image source={locateIcon} style={{ width: 22, height: 22 }} resizeMode="contain" />
             </Pressable>
           </View>
         </View>

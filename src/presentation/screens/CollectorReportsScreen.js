@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
 
-import { REPORT_STATUS } from '../../domain/constants/reportStatus';
 import { useUser } from '../../shared/context/UserContext';
 import { container } from '../../shared/di/container';
 import { useCurrentLocation } from '../../shared/hooks/useCurrentLocation';
@@ -45,8 +44,7 @@ function normalizeSummary(summary) {
   };
 }
 
-export function CollectorReportsScreen({ currentUser, onOpenMap, onReportUpdated }) {
-  const isDark = false;
+export function CollectorReportsScreen({ currentUser, onOpenMap, onReportUpdated, isDark = false }) {
   const theme = getTheme(isDark);
   const { setSelectedReport, setSelectedReportId } = useUser();
   const canManage = currentUser?.role === 'collector';
@@ -307,18 +305,6 @@ export function CollectorReportsScreen({ currentUser, onOpenMap, onReportUpdated
         ))
       )}
 
-      <View style={{ backgroundColor: colors.card, borderRadius: 20, padding: 16, borderWidth: 1, borderColor: colors.border, gap: 8 }}>
-        <Text style={{ color: colors.text, fontSize: 15, fontWeight: '900' }}>Flujo por estado</Text>
-        {[
-          `${REPORT_STATUS.PENDING}: tomar`,
-          `${REPORT_STATUS.ASSIGNED}: iniciar`,
-          `${REPORT_STATUS.IN_PROGRESS}: cerrar o rechazar`,
-          `${REPORT_STATUS.COLLECTED}: ver historial`,
-          `${REPORT_STATUS.REJECTED}: ver motivo`,
-        ].map((item) => (
-          <Text key={item} style={{ color: colors.textMuted, fontSize: 12 }}>{item}</Text>
-        ))}
-      </View>
 
       <ReportDetailSheet
         report={inspectedReport}
