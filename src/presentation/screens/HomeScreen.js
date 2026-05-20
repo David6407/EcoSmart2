@@ -12,7 +12,7 @@ import { ReportDetailSheet } from '../components/ReportDetailSheet';
 import { StatusBadge } from '../components/StatusBadge';
 import { getTheme } from '../styles/appStyles';
 
-const icon = require('../../../assets/logo.png');
+const ecosmartLettersIcon = require('../../../assets/Logos/EcoSmartLettersIcon.png');
 const collectorDoneIcon = require('../../../assets/HomeIcons/RecolectorIcons/done.png');
 const collectorPendingIcon = require('../../../assets/HomeIcons/RecolectorIcons/pending.png');
 const collectorInProgressIcon = require('../../../assets/HomeIcons/RecolectorIcons/inprogress.png');
@@ -270,31 +270,21 @@ export function HomeScreen({ onChangeTab, onUserUpdated, user, isDark = false })
       >
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6 }}>
           <View style={{ gap: 4 }}>
-            <Text style={{ color: colors.textMuted, fontSize: 13, fontWeight: '600' }}>{getGreeting()} 👋</Text>
+            <Text style={{ color: colors.textMuted, fontSize: 13, fontWeight: '600' }}>{getGreeting()} </Text>
             <Text style={{ color: colors.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.8 }}>{firstName}</Text>
-            <View style={{
-              flexDirection: 'row', alignItems: 'center', gap: 5,
-              backgroundColor: '#E4F5E9', borderRadius: 999,
-              alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4,
-            }}>
-              <Image source={collectorDoneIcon} style={{ width: 14, height: 14 }} resizeMode="contain" />
-              <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800' }}>Recolector</Text>
+          </View>
+            <View style={{ width: '100%', alignItems: 'flex-end' }}>
+              <Image 
+                source={ecosmartLettersIcon} 
+                  style={{ 
+                  width: 150,
+                  height: 80,
+                  marginRight:29,
+                  tintColor: isDark ? colors.accent : undefined
+                }} 
+                resizeMode="contain"
+              />
             </View>
-          </View>
-          <View
-            style={{
-              width: 46,
-              height: 46,
-              borderRadius: 15,
-              backgroundColor: '#E2F5E9',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
-          >
-            <Image source={icon} style={{ width: 28, height: 28 }} resizeMode="contain" />
-          </View>
         </View>
 
         <View
@@ -325,7 +315,7 @@ export function HomeScreen({ onChangeTab, onUserUpdated, user, isDark = false })
             </Text>
           </View>
           <Text style={{ color: 'rgba(255,255,255,0.82)', fontSize: 13, lineHeight: 19 }}>
-            Prioriza lo pendiente, atiende lo asignado y revisa la zona con mayor acumulacion.
+            Tu jornada, tus tareas y tu progreso en tiempo real.
           </Text>
         </View>
 
@@ -348,7 +338,7 @@ export function HomeScreen({ onChangeTab, onUserUpdated, user, isDark = false })
                 borderColor: colors.border,
               }}
             >
-              <Image source={item.icon} style={{ width: 24, height: 24 }} resizeMode="contain" />
+              <Image source={item.icon} style={{ width: 24, height: 24, tintColor: isDark ? colors.accent : undefined }} resizeMode="contain" />
               <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900' }}>{loadingCollectorStats ? '--' : item.value}</Text>
               <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '600', textAlign: 'center' }}>{item.label}</Text>
             </View>
@@ -377,19 +367,27 @@ export function HomeScreen({ onChangeTab, onUserUpdated, user, isDark = false })
           subtitle="Consulta contenedores y reportes geolocalizados para decidir la ruta."
           onPress={() => onChangeTab('map')}
           accent={colors.accent}
-          cardColor="#EBF9F1"
-          borderColor="#C0EDD4"
+          cardColor={isDark ? '#132B20' : '#EBF9F1'}
+          borderColor={isDark ? '#24563A' : '#C0EDD4'}
           iconSource={collectorMapIcon}
+          iconBg={isDark ? '#182820' : '#FFFFFF'}
+          iconTint={colors.accent}
+          titleColor={colors.text}
+          subtitleColor={colors.textMuted}
         />
 
         <CollectorQuickAction
           title="Gestionar reportes"
           subtitle="Toma reportes pendientes, pasalos a proceso y cierralos desde la lista."
           onPress={() => onChangeTab('reports')}
-          accent="#1976D2"
-          cardColor="#EAF2FF"
-          borderColor="#C8DAFF"
+          accent={isDark ? '#5B9BD5' : '#1976D2'}
+          cardColor={isDark ? '#0F1F2E' : '#EAF2FF'}
+          borderColor={isDark ? '#1A3A5C' : '#C8DAFF'}
           iconSource={collectorReportIcon}
+          iconBg={isDark ? '#182028' : '#FFFFFF'}
+          iconTint={isDark ? '#5B9BD5' : '#1976D2'}
+          titleColor={colors.text}
+          subtitleColor={colors.textMuted}
         />
       </ScrollView>
     );
@@ -408,17 +406,17 @@ export function HomeScreen({ onChangeTab, onUserUpdated, user, isDark = false })
         </View>
         <View
           style={{
-            width: 46,
-            height: 46,
+            height: 36,
             borderRadius: 15,
-            backgroundColor: '#E2F5E9',
+            backgroundColor: isDark ? '#1A3828' : '#E2F5E9',
             alignItems: 'center',
             justifyContent: 'center',
+            paddingHorizontal: 10,
             borderWidth: 1,
             borderColor: colors.border,
           }}
         >
-          <Image source={icon} style={{ width: 28, height: 28 }} resizeMode="contain" />
+          <Image source={ecosmartLettersIcon} style={{ width: 150, height: 80, tintColor: isDark ? colors.accent : undefined }} resizeMode="contain" />
         </View>
       </View>
 

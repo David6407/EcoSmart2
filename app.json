@@ -4,43 +4,54 @@
     "slug": "EcoSmart",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/logo.png",
+
+    "icon": "./assets/apkicon.png",
+
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+
     "splash": {
-      "image": "./assets/logo.png",
+      "image": "./assets/Logos/EcoSmartLettersIcon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+
     "ios": {
       "supportsTablet": true
     },
+
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/logo.png",
+        "foregroundImage": "./assets/apkicon.png",
         "backgroundColor": "#ffffff"
       },
+
       "edgeToEdgeEnabled": true,
       "package": "com.davi6407.EcoSmart",
+
       "permissions": [
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.POST_NOTIFICATIONS"
       ]
     },
+
     "web": {
       "favicon": "./assets/favicon.png"
     },
+
     "plugins": [
       "expo-sqlite",
+
       [
         "expo-notifications",
         {
-          "icon": "./assets/logo.png",
+          "icon": "./assets/apkicon.png",
           "color": "#2E9E65",
           "defaultChannel": "default"
         }
       ],
+
       [
         "expo-image-picker",
         {
@@ -50,6 +61,7 @@
         }
       ]
     ],
+
     "extra": {
       "eas": {
         "projectId": "d8e30e96-2c35-49a6-ae2a-4526d882be7a"
